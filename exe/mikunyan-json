@@ -1,0 +1,73 @@
+#!/usr/bin/env ruby
+require 'mikunyan'
+require 'json'
+require 'base64'
+
+def obj64(obj)
+    if obj.class == Hash
+        obj.map{|k, v| [k, obj64(v)]}.to_h
+    elsif obj.class == Array
+        obj.map{|e| obj64(e)}
+    elsif obj.class == String
+        if obj.encoding == Encoding::UTF_8
+            obj
+        else
+            Base64::strict_encode64(obj)
+        end
+    else
+        obj
+    end
+end
+
+opts = {:as_asset => false, :pretty => false}
+arg = nil
+i = 0
+while i < ARGV.count
+    if ARGV[i].start_with?('-')
+        case ARGV[i]
+        when '--as-asset', '-a'
+            opts[:as_asset] = true
+        when '--pretty', '-p'
+            opts[:pretty] = true
+        else
+            warn("Unknown option: #{ARGV[i]}")
+            exit(1)
+        end
+    else
+        arg = ARGV[i] unless arg
+    end
+    i += 1
+end
+
+unless File.file?(arg)
+    warn("File not found: #{arg}")
+    exit(1)
+end
+
+assets = {}
+
+if opts[:as_asset]
+    asset = Mikunyan::Asset.file(arg, arg.match(/([^\/]*?)(\.[^.]*)?\z/)[1])
+    objs = []
+    asset.path_ids.each do |e|
+        obj = asset.parse_object_simple(e)
+        objs << obj64(obj) if obj
+    end
+    assets[asset.name] = objs
+else
+    bundle = Mikunyan::AssetBundle.file(arg)
+    bundle.assets.each do |asset|
+        objs = []
+        asset.path_ids.each do |e|
+            obj = asset.parse_object_simple(e)
+            objs << obj64(obj) if obj
+        end
+        assets[asset.name] = objs
+    end
+end
+
+if opts[:pretty]
+    puts JSON.pretty_generate(assets)
+else
+    puts JSON.generate(assets)
+end
