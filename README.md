@@ -129,7 +129,7 @@ Available options:
 - [bin_utils](https://rubygems.org/gems/bin_utils)
 - [chunky_png](https://rubygems.org/gems/chunky_png)
 
-Mikunyan use [oily_png](https://rubygems.org/gems/oily_png) instead of chunky_png if available.
+Mikunyan uses [oily_png](https://rubygems.org/gems/oily_png) instead of chunky_png if available.
 
 ## FAQ
 
