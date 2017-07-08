@@ -18,6 +18,13 @@ Or install it yourself as:
 
     $ gem install mikunyan
 
+If you want to install development build:
+
+    $ git clone https://github.com/Ishotihadus/mikunyan
+    $ cd mikunyan
+    $ rake build
+    $ gem install -l pkg/mikunyan-3.9.x.gem
+
 ## Usage
 
 ### Basic Usage
