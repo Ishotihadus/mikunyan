@@ -118,16 +118,17 @@ img = Mikunyan::ImageDecoder.decode_object(obj)
 img.save('mikunyan.png')
 ```
 
-### Json Outputer
+### Json / YAML Outputer
 
-`mikunyan-json` is the executable command for converting unity3d to json.
+`mikunyan-json` is an executable command for converting unity3d to json.
 
     $ mikunyan-json bundle.unity3d > bundle.json
 
 Available options:
 
 - `--as-asset` (`-a`): interpret input file as not AssetBudnle but Asset
-- `--pretty` (`-p`): prettify output json
+- `--pretty` (`-p`): prettify output json (`mikunyan-json` only)
+- `--yaml` (`-y`): YAML mode
 
 ## Dependencies
 
