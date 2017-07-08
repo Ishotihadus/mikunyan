@@ -43,6 +43,31 @@ module Mikunyan
             end
         end
 
+        def self.create_astc_file(object)
+            astc_list = {
+                48 => 4, 49 => 5, 50 => 6, 51 => 8, 52 => 10, 53 => 12,
+                54 => 4, 55 => 5, 56 => 6, 57 => 8, 58 => 10, 59 => 12
+            }
+            width = object['m_Width']
+            height = object['m_Height']
+            fmt = object['m_TextureFormat']
+            bin = object['image data']
+            width = width.value if width.class == ObjectValue
+            height = height.value if height.class == ObjectValue
+            fmt = fmt.value if fmt.class == ObjectValue
+            bin = bin.value if bin.class == ObjectValue
+            if width && height && fmt && astc_list[fmt]
+                header = "\x13\xAB\xA1\x5C".force_encoding('ascii-8bit')
+                header << [astc_list[fmt], astc_list[fmt], 1].pack("C*")
+                header << [width].pack("V").byteslice(0, 3)
+                header << [height].pack("V").byteslice(0, 3)
+                header << "\x01\x00\x00"
+                header + bin
+            else
+                nil
+            end
+        end
+
         def self.decode_etc1(width, height, bin)
             bw = (width + 3) / 4
             bh = (height + 3) / 4
