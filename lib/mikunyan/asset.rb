@@ -230,7 +230,6 @@ module Mikunyan
                 children.each do |child|
                     r[child[:name]] = parse_object_private(br, child)
                 end
-                br.jmp(pos + node.size)
             else
                 pos = br.pos
                 value = nil
