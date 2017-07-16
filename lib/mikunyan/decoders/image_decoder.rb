@@ -326,20 +326,28 @@ module Mikunyan
 
         # convert 16bit float
         def self.n2f(n)
-            s = n & 0x8000 != 0
-            e = (n & 0x7c00) >> 10
-            f = n & 0x03ff
-
-            r = 0
-            if e == 0
-                r = (f / 1024r) * (2**-14) if f != 0
-            elsif e == 0x1f
-                r = f == 0 ? Float::INFINITY : Float::NAN
+            case n
+            when 0x0000
+                0.0
+            when 0x8000
+                -0.0
+            when 0x7c00
+                Float::INFINITY
+            when 0xfc00
+                -Float::INFINITY
             else
-                r = (f / 1024r + 1) * (2**(e-15))
+                s = n & 0x8000 != 0
+                e = n & 0x7c00
+                f = n & 0x03ff
+                case e
+                when 0x7c00
+                    Float::NAN
+                when 0
+                    (s ? -f : f) * 2.0**-24
+                else
+                    (s ? -1 : 1) * (f / 1024.0 + 1) * (2.0 ** ((e >> 10)-15))
+                end
             end
-            r *= -1 if s
-            r.to_f
         end
 
         # [0.0,1.0] -> [0,255]
