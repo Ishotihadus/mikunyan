@@ -1,5 +1,6 @@
 begin; require 'oily_png'; rescue LoadError; require 'chunky_png'; end
 require 'bin_utils'
+require 'fiddle'
 
 module Mikunyan
     class ImageDecoder
@@ -27,20 +28,239 @@ module Mikunyan
             when 2
                 decode_argb4444(width, height, bin, endian)
             when 3
-                decode_rgb888(width, height, bin, endian)
+                decode_rgb888(width, height, bin)
             when 4
-                decode_rgba8888(width, height, bin, endian)
+                decode_rgba8888(width, height, bin)
             when 5
-                decode_argb8888(width, height, bin, endian)
+                decode_argb8888(width, height, bin)
             when 7
                 decode_rgb565(width, height, bin, endian)
+            when 9
+                decode_r16(width, height, bin)
             when 13
                 decode_rgba4444(width, height, bin, endian)
+            when 14
+                decode_bgra8888(width, height, bin)
+            when 15
+                decode_rhalf(width, height, bin, endian)
+            when 16
+                decode_rghalf(width, height, bin, endian)
+            when 17
+                decode_rgbahalf(width, height, bin, endian)
+            when 18
+                decode_rfloat(width, height, bin, endian)
+            when 19
+                decode_rgfloat(width, height, bin, endian)
+            when 20
+                decode_rgbafloat(width, height, bin, endian)
+            when 22
+                decode_rgb9e5float(width, height, bin, endian)
             when 34
                 decode_etc1(width, height, bin)
+            when 62
+                decode_rg16(width, height, bin)
+            when 63
+                decode_r8(width, height, bin)
             else
                 nil
             end
+        end
+
+        # 4 bit integer per color
+
+        def self.decode_rgba4444(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 4)
+            (width * height).times do |i|
+                c = endian == :little ? BinUtils.get_int16_le(bin, i*2) : BinUtils.get_int16_be(bin, i*2)
+                c = ((c & 0xf000) << 12) | ((c & 0x0f00) << 8) | ((c & 0x00f0) << 4) | (c & 0x000f)
+                BinUtils.append_int32_be!(mem, c << 4 | c)
+            end
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+        end
+
+        def self.decode_argb4444(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 4)
+            (width * height).times do |i|
+                c = endian == :little ? BinUtils.get_int16_le(bin, i*2) : BinUtils.get_int16_be(bin, i*2)
+                c = ((c & 0x0f00) << 16) | ((c & 0x00f0) << 12) | ((c & 0x000f) << 8) | ((c & 0xf000) >> 12)
+                BinUtils.append_int32_be!(mem, c << 4 | c)
+            end
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+        end
+
+        # 5-6 bit integer per color
+
+        def self.decode_rgb565(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 3)
+            (width * height).times do |i|
+                c = endian == :little ? BinUtils.get_int16_le(bin, i*2) : BinUtils.get_int16_be(bin, i*2)
+                r = (c & 0xf800) >> 8
+                g = (c & 0x07e0) >> 3
+                b = (c & 0x001f) << 3
+                BinUtils.append_int8!(mem, r | r >> 5, g | g >> 6, b | b >> 5)
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        # 8 bit integer per color
+
+        def self.decode_a8(width, height, bin)
+            mem = String.new(capacity: width * height * 3)
+            (width * height).times do |i|
+                c = BinUtils.get_int8(bin, i)
+                BinUtils.append_int8!(mem, c, c, c)
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        def self.decode_r8(width, height, bin)
+            decode_a8(width, height, bin)
+        end
+
+        def self.decode_rg16(width, height, bin)
+            mem = String.new(capacity: width * height * 3)
+            (width * height).times do |i|
+                BinUtils.append_int16_int8_be!(mem, BinUtils.get_int16_be(bin, i*2), 0)
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        def self.decode_rgb24(width, height, bin)
+            ChunkyPNG::Image.from_rgb_stream(width, height, bin)
+        end
+
+        def self.decode_rgba32(width, height, bin)
+            ChunkyPNG::Image.from_rgba_stream(width, height, bin)
+        end
+
+        def self.decode_argb32(width, height, bin)
+            mem = String.new(capacity: width * height * 4)
+            (width * height).times do |i|
+                c = BinUtils.get_int32_be(bin, i*4)
+                BinUtils.append_int32_be!(mem, ((c & 0x00ffffff) << 8) | ((c & 0xff000000) >> 24))
+            end
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+        end
+
+        def self.decode_bgra32(width, height, bin)
+            mem = String.new(capacity: width * height * 4)
+            (width * height).times do |i|
+                c = BinUtils.get_int32_le(bin, i*4)
+                BinUtils.append_int32_be!(mem, ((c & 0x00ffffff) << 8) | ((c & 0xff000000) >> 24))
+            end
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+        end
+
+        # 16 bit integer per color
+
+        def self.decode_r16(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 3)
+            (width * height).times do |i|
+                c = endian == :little ? BinUtils.get_int16_le(bin, i*2) : BinUtils.get_int16_be(bin, i*2)
+                c = f2i(r / 65535.0)
+                BinUtils.append_int8!(mem, c, c, c)
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        # 9 bit float per color
+
+        def self.decode_rgb9e5float(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 3)
+            (width * height).times do |i|
+                n = endian == :little ? BinUtils.get_int32_le(bin, i*4) : BinUtils.get_int32_be(bin, i*4)
+                e = (n & 0xf8000000) >> 27
+                r = (n & 0x7fc0000) >> 9
+                g = (n & 0x3fe00) >> 9
+                b = n & 0x1ff
+                r = (r / 512r + 1) * (2**(e-15))
+                g = (g / 512r + 1) * (2**(e-15))
+                b = (b / 512r + 1) * (2**(e-15))
+                BinUtils.append_int8!(mem, f2i(r), f2i(g), f2i(b))
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        # 16 bit (half) float per color
+
+        def self.decode_rhalf(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 3)
+            (width * height).times do |i|
+                c = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*2) : BinUtils.get_int16_be(bin, i*2)))
+                BinUtils.append_int8!(mem, c, c, c)
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        def self.decode_rghalf(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 3)
+            (width * height).times do |i|
+                r = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*4) : BinUtils.get_int16_be(bin, i*4)))
+                g = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*4+2) : BinUtils.get_int16_be(bin, i*4+2)))
+                BinUtils.append_int8!(mem, r, g, 0)
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        def self.decode_rgbahalf(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 4)
+            (width * height).times do |i|
+                r = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*8) : BinUtils.get_int16_be(bin, i*8)))
+                g = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*8+2) : BinUtils.get_int16_be(bin, i*8+2)))
+                b = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*8+4) : BinUtils.get_int16_be(bin, i*8+4)))
+                a = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*8+6) : BinUtils.get_int16_be(bin, i*8+6)))
+                BinUtils.append_int8!(mem, r, g, b, a)
+            end
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+        end
+
+        # 32 bit float per color
+
+        def self.decode_rfloat(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 3)
+            unpackstr = endian == :little ? 'e' : 'g'
+            (width * height).times do |i|
+                c = f2i(bin.byteslice(i*4, 4).unpack(unpackstr)[0])
+                BinUtils.append_int8!(mem, c, c, c)
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        def self.decode_rgfloat(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 3)
+            unpackstr = endian == :little ? 'e2' : 'g2'
+            (width * height).times do |i|
+                r, g = bin.byteslice(i*8, 8).unpack(unpackstr)
+                BinUtils.append_int8!(mem, f2i(r), f2i(g), 0)
+            end
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+        end
+
+        def self.decode_rgbafloat(width, height, bin, endian = :big)
+            mem = String.new(capacity: width * height * 4)
+            unpackstr = endian == :little ? 'e4' : 'g4'
+            (width * height).times do |i|
+                r, g, b, a = bin.byteslice(i*16, 16).unpack(unpackstr)
+                BinUtils.append_int8!(mem, f2i(r), f2i(g), f2i(b), f2i(a))
+            end
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+        end
+
+        # other formats
+
+        def self.decode_etc1(width, height, bin)
+            bw = (width + 3) / 4
+            bh = (height + 3) / 4
+            mem = Fiddle::Pointer.malloc(bw * bh * 48)
+            bh.times do |by|
+                bw.times do |bx|
+                    block = decode_etc1_block(BinUtils.get_sint64_be(bin, (bx + by * bw) * 8))
+                    16.times do |i|
+                        mem[((i / 4 + bx * 4) + (i % 4 + by * 4) * bw * 4) * 3, 3] = block[i]
+                    end
+                end
+            end
+            ChunkyPNG::Image.from_rgb_stream(bw * 4, bh * 4, mem.to_str).crop!(0, 0, width, height)
         end
 
         def self.create_astc_file(object)
@@ -66,82 +286,6 @@ module Mikunyan
             else
                 nil
             end
-        end
-
-        def self.decode_etc1(width, height, bin)
-            bw = (width + 3) / 4
-            bh = (height + 3) / 4
-            pixels = "\0" * (64 * bw * bh)
-            pixels.force_encoding('ascii-8bit')
-            bh.times do |by|
-                bw.times do |bx|
-                    block = decode_etc1_block(BinUtils.get_sint64_be(bin, (bx + by * bw) * 8)).pack('N16')
-                    pixels[( bx * 4      * bh + by) * 16, 16] = block.byteslice( 0, 16)
-                    pixels[((bx * 4 + 1) * bh + by) * 16, 16] = block.byteslice(16, 16)
-                    pixels[((bx * 4 + 2) * bh + by) * 16, 16] = block.byteslice(32, 16)
-                    pixels[((bx * 4 + 3) * bh + by) * 16, 16] = block.byteslice(48, 16)
-                end
-            end
-            ChunkyPNG::Image.from_rgba_stream(bh * 4, bw * 4, pixels).rotate_right!.crop!(0, 0, width, height)
-        end
-
-        def self.decode_a8(width, height, bin)
-            pixels = bin.unpack('C*').map do |c|
-                c << 24 | c << 16 | c << 8 | 0xff
-            end
-            ChunkyPNG::Image.new(width, height, pixels)
-        end
-
-        def self.decode_rgb565(width, height, bin, endian = :big)
-            pixels = bin.unpack(endian == :little ? 'v*' : 'n*').map do |c|
-                r = (c & 0xf800) >> 8
-                g = (c & 0x07e0) >> 3
-                b = (c & 0x001f) << 3
-                r = r | r >> 5
-                g = g | g >> 6
-                b = b | b >> 5
-                r << 24 | g << 16 | b << 8 | 0xff
-            end
-            ChunkyPNG::Image.new(width, height, pixels)
-        end
-
-        def self.decode_rgb888(width, height, bin, endian = :big)
-            if endian == :little
-                ChunkyPNG::Image.from_bgr_stream(width, height, bin)
-            else
-                ChunkyPNG::Image.from_rgb_stream(width, height, bin)
-            end
-        end
-
-        def self.decode_rgba4444(width, height, bin, endian = :big)
-            pixels = bin.unpack(endian == :little ? 'v*' : 'n*').map do |c|
-                c = ((c & 0xf000) << 12) | ((c & 0x0f00) << 8) | ((c & 0x00f0) << 4) | (c & 0x000f)
-                c << 4 | c
-            end
-            ChunkyPNG::Image.new(width, height, pixels)
-        end
-
-        def self.decode_argb4444(width, height, bin, endian = :big)
-            pixels = bin.unpack(endian == :little ? 'v*' : 'n*').map do |c|
-                c = ((c & 0x0f00) << 16) | ((c & 0x00f0) << 12) | ((c & 0x000f) << 8) | ((c & 0xf000) >> 12)
-                c << 4 | c
-            end
-            ChunkyPNG::Image.new(width, height, pixels)
-        end
-
-        def self.decode_rgba8888(width, height, bin, endian = :big)
-            if endian == :little
-                ChunkyPNG::Image.from_abgr_stream(width, height, bin)
-            else
-                ChunkyPNG::Image.from_rgba_stream(width, height, bin)
-            end
-        end
-
-        def self.decode_argb8888(width, height, bin, endian = :big)
-            pixels = bin.unpack(endian == :little ? 'V*' : 'N*').map do |c|
-                c = ((c & 0x00ffffff) << 8) | ((c & 0xff000000) >> 24)
-            end
-            ChunkyPNG::Image.new(width, height, pixels)
         end
 
         private
@@ -177,10 +321,30 @@ module Mikunyan
             r = (color >> 16 & 0xff) + modifier
             g = (color >> 8 & 0xff) + modifier
             b = (color & 0xff) + modifier
-            r = (r > 255 ? 255 : r < 0 ? 0 : r)
-            g = (g > 255 ? 255 : g < 0 ? 0 : g)
-            b = (b > 255 ? 255 : b < 0 ? 0 : b)
-            r << 24 | g << 16 | b << 8 | 0xff
+            r.clamp(0, 255).chr + g.clamp(0, 255).chr + b.clamp(0, 255).chr
+        end
+
+        # convert 16bit float
+        def self.n2f(n)
+            s = n & 0x8000 != 0
+            e = (n & 0x7c00) >> 10
+            f = n & 0x03ff
+
+            r = 0
+            if e == 0
+                r = (f / 1024r) * (2**-14) if f != 0
+            elsif e == 0x1f
+                r = f == 0 ? Float::INFINITY : Float::NAN
+            else
+                r = (f / 1024r + 1) * (2**(e-15))
+            end
+            r *= -1 if s
+            r.to_f
+        end
+
+        # [0.0,1.0] -> [0,255]
+        def self.f2i(d)
+            (d * 255).round.clamp(0, 255)
         end
     end
 end
