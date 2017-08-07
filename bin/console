@@ -1,4 +1,3 @@
 #!/usr/bin/env ruby
-require "mikunyan/decoders"
 require "pry"
 Pry.start
