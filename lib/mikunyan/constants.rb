@@ -1,4 +1,5 @@
 module Mikunyan
+    private
     STRING_TABLE = {
         0=>'AABB',
         5=>'AnimationClip',

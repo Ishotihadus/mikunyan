@@ -1,19 +1,131 @@
 module Mikunyan
+    # Class for representing Unity Asset
+    # @attr_reader [String] name Asset name
+    # @attr_reader [Integer] format file format number
+    # @attr_reader [String] generator_version version string of generator
+    # @attr_reader [Integer] target_platform target platform number
+    # @attr_reader [Symbol] endian data endianness (:little or :big)
+    # @attr_reader [Array<Mikunyan::Asset::Klass>] klasses defined classes
+    # @attr_reader [Array<Mikunyan::Asset::ObjectData>] objects included objects
+    # @attr_reader [Array<Integer>] add_ids ?
+    # @attr_reader [Array<Mikunyan::Asset::Reference>] references reference data
     class Asset
-        attr_accessor :name, :format, :generator_version, :target_platform, :endian, :klasses, :objects, :add_ids, :references
+        attr_reader :name, :format, :generator_version, :target_platform, :endian, :klasses, :objects, :add_ids, :references
+
+        # Struct for representing Asset class definition
+        # @attr [Integer] class_id class ID
+        # @attr [Integer,nil] script_id script ID
+        # @attr [String] hash hash value (16 or 32 bytes)
+        # @attr [Mikunyan::TypeTree, nil] type_tree given TypeTree
         Klass = Struct.new(:class_id, :script_id, :hash, :type_tree)
+
+        # Struct for representing Asset object information
+        # @attr [Integer] path_id path ID
+        # @attr [Integer] offset data offset
+        # @attr [Integer] size data size
+        # @attr [Integer,nil] type_id type ID
+        # @attr [Integer,nil] class_id class ID
+        # @attr [Integer,nil] class_idx class definition index
+        # @attr [Boolean] destroyed? destroyed or not
+        # @attr [String] data binary data of object
         ObjectData = Struct.new(:path_id, :offset, :size, :type_id, :class_id, :class_idx, :destroyed?, :data)
+
+        # Struct for representing Asset reference information
+        # @attr [String] path path
+        # @attr [String] guid GUID (16 bytes)
+        # @attr [Integer] type ?
+        # @attr [String] file_path Asset name
         Reference = Struct.new(:path, :guid, :type, :file_path)
+
+        # Load Asset from binary string
+        # @param [String] bin binary data
+        # @param [String] name Asset name
+        # @return [Mikunyan::Asset] deserialized Asset object
+        def self.load(bin, name)
+            r = Asset.new(name)
+            r.send(:load, bin)
+            r
+        end
+
+        # Load Asset from file
+        # @param [String] file file name
+        # @param [String] name Asset name (automatically generated if not specified)
+        # @return [Mikunyan::Asset] deserialized Asset object
+        def self.file(file, name=nil)
+            name = File.basename(name, '.*') unless name
+            Asset.load(File.binread(file), name)
+        end
+
+        # Returns list of all path IDs
+        # @return [Array<Integer>] list of all path IDs
+        def path_ids
+            @objects.map{|e| e.path_id}
+        end
+
+        # Returns list of containers
+        # @return [Array<Hash>,nil] list of all containers
+        def containers
+            obj = parse_object(1)
+            return nil unless obj && obj.m_Container && obj.m_Container.array?
+            obj.m_Container.value.map do |e|
+                {:name => e.first.value, :preload_index => e.second.preloadIndex.value, :path_id => e.second.asset.m_PathID.value}
+            end
+        end
+
+        # Parse object of given path ID
+        # @param [Integer,ObjectData] path_id path ID or object
+        # @return [Mikunyan::ObjectValue,nil] parsed object
+        def parse_object(path_id)
+            if path_id.class == Integer
+                obj = @objects.find{|e| e.path_id == path_id}
+                return nil unless obj
+            elsif path_id.class == ObjectData
+                obj = path_id
+            else
+                return nil
+            end
+
+            klass = (obj.class_idx ? @klasses[obj.class_idx] : @klasses.find{|e| e.class_id == obj.class_id} || @klasses.find{|e| e.class_id == obj.type_id})
+            type_tree = Asset.parse_type_tree(klass)
+            return nil unless type_tree
+
+            parse_object_private(BinaryReader.new(obj.data, @endian), type_tree)
+        end
+
+        # Parse object of given path ID and simplify it
+        # @param [Integer,ObjectData] path_id path ID or object
+        # @return [Hash,nil] parsed object
+        def parse_object_simple(path_id)
+            Asset.object_simplify(parse_object(path_id))
+        end
+
+        # Returns object type name string
+        # @param [Integer,ObjectData] path_id path ID or object
+        # @return [String,nil] type name
+        def object_type(path_id)
+            if path_id.class == Integer
+                obj = @objects.find{|e| e.path_id == path_id}
+                return nil unless obj
+            elsif path_id.class == ObjectData
+                obj = path_id
+            else
+                return nil
+            end
+            klass = (obj.class_idx ? @klasses[obj.class_idx] : @klasses.find{|e| e.class_id == obj.class_id} || @klasses.find{|e| e.class_id == obj.type_id})
+            if klass && klass.type_tree && klass.type_tree.nodes[0]
+                klass.type_tree.nodes[0].type
+            elsif klass
+                Mikunyan::CLASS_ID[klass.class_id]
+            else
+                nil
+            end
+        end
+
+        private
 
         def initialize(name)
             @name = name
             @endian = :big
-        end
-
-        def self.file(file, name)
-            r = Asset.new(name)
-            r.load(File.binread(file))
-            r
         end
 
         def load(bin)
@@ -108,97 +220,6 @@ module Mikunyan
             end
         end
 
-        def path_ids
-            @objects.map{|e| e.path_id}
-        end
-
-        def containers
-            obj = parse_object(1)
-            return nil unless obj && obj.m_Container && obj.m_Container.array?
-            obj.m_Container.value.map do |e|
-                {:name => e.first.value, :preload_index => e.second.preloadIndex.value, :path_id => e.second.asset.m_PathID.value}
-            end
-        end
-
-        def parse_object(path_id)
-            if path_id.class == Integer
-                obj = @objects.find{|e| e.path_id == path_id}
-                return nil unless obj
-            elsif path_id.class == ObjectData
-                obj = path_id
-            else
-                return nil
-            end
-
-            klass = (obj.class_idx ? @klasses[obj.class_idx] : @klasses.find{|e| e.class_id == obj.class_id} || @klasses.find{|e| e.class_id == obj.type_id})
-            type_tree = Asset.parse_type_tree(klass)
-            return nil unless type_tree
-
-            parse_object_private(BinaryReader.new(obj.data, @endian), type_tree)
-        end
-
-        def parse_object_simple(path_id)
-            Asset.object_simplify(parse_object(path_id))
-        end
-
-        def object_type(path_id)
-            if path_id.class == Integer
-                obj = @objects.find{|e| e.path_id == path_id}
-                return nil unless obj
-            elsif path_id.class == ObjectData
-                obj = path_id
-            else
-                return nil
-            end
-            klass = (obj.class_idx ? @klasses[obj.class_idx] : @klasses.find{|e| e.class_id == obj.class_id} || @klasses.find{|e| e.class_id == obj.type_id})
-            if klass && klass.type_tree && klass.type_tree.nodes[0]
-                klass.type_tree.nodes[0].type
-            elsif klass
-                Mikunyan::CLASS_ID[klass.class_id]
-            else
-                nil
-            end
-        end
-
-        def self.parse_type_tree(klass)
-            return nil unless klass.type_tree
-            nodes = klass.type_tree.nodes
-            tree = {}
-            stack = []
-            nodes.each do |node|
-                this = {:name => node.name, :node => node, :children => []}
-                if node.depth == 0
-                    tree = this
-                else
-                    stack[node.depth - 1][:children] << this
-                end
-                stack[node.depth] = this
-            end
-            tree
-        end
-
-        def self.object_simplify(obj)
-            if obj.class != ObjectValue
-                obj
-            elsif obj.type == 'pair'
-                [object_simplify(obj['first']), object_simplify(obj['second'])]
-            elsif obj.type == 'map' && obj.array?
-                obj.value.map{|e| [object_simplify(e['first']), object_simplify(e['second'])] }.to_h
-            elsif obj.value?
-                object_simplify(obj.value)
-            elsif obj.array?
-                obj.value.map{|e| object_simplify(e)}
-            else
-                hash = {}
-                obj.keys.each do |key|
-                    hash[key] = object_simplify(obj[key])
-                end
-                hash
-            end
-        end
-
-        private
-
         def parse_object_private(br, type_tree)
             r = nil
             node = type_tree[:node]
@@ -266,6 +287,43 @@ module Mikunyan
             end
             br.align(4) if node.flags & 0x4000 != 0
             r
+        end
+
+        def self.object_simplify(obj)
+            if obj.class != ObjectValue
+                obj
+            elsif obj.type == 'pair'
+                [object_simplify(obj['first']), object_simplify(obj['second'])]
+            elsif obj.type == 'map' && obj.array?
+                obj.value.map{|e| [object_simplify(e['first']), object_simplify(e['second'])] }.to_h
+            elsif obj.value?
+                object_simplify(obj.value)
+            elsif obj.array?
+                obj.value.map{|e| object_simplify(e)}
+            else
+                hash = {}
+                obj.keys.each do |key|
+                    hash[key] = object_simplify(obj[key])
+                end
+                hash
+            end
+        end
+
+        def self.parse_type_tree(klass)
+            return nil unless klass.type_tree
+            nodes = klass.type_tree.nodes
+            tree = {}
+            stack = []
+            nodes.each do |node|
+                this = {:name => node.name, :node => node, :children => []}
+                if node.depth == 0
+                    tree = this
+                else
+                    stack[node.depth - 1][:children] << this
+                end
+                stack[node.depth] = this
+            end
+            tree
         end
     end
 end

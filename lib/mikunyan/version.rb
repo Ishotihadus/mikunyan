@@ -1,3 +1,4 @@
 module Mikunyan
-  VERSION = "3.9.0"
+    # version string
+    VERSION = "3.9.0"
 end

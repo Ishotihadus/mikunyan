@@ -3,10 +3,11 @@ require 'bin_utils'
 require 'fiddle'
 
 module Mikunyan
+    # Class for image decoding tools
     class ImageDecoder
-        Etc1ModifierTable = [[2, 8], [5, 17], [9, 29], [13, 42], [18, 60], [24, 80], [33, 106], [47, 183]]
-        Etc1SubblockTable = [[0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1], [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]]
-
+        # Decode image from Mikunyan::ObjectValue
+        # @param [Mikunyan::ObjectValue] object object to decode
+        # @return [ChunkyPNG::Image,nil] decoded image
         def self.decode_object(object)
             return nil unless object.class == ObjectValue
 
@@ -66,8 +67,12 @@ module Mikunyan
             end
         end
 
-        # 4 bit integer per color
-
+        # Decode image from RGBA4444 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgba4444(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 4)
             (width * height).times do |i|
@@ -78,6 +83,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgba_stream(width, height, mem)
         end
 
+        # Decode image from ARGB4444 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_argb4444(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 4)
             (width * height).times do |i|
@@ -88,8 +99,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgba_stream(width, height, mem)
         end
 
-        # 5-6 bit integer per color
-
+        # Decode image from RGB565 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgb565(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 3)
             (width * height).times do |i|
@@ -102,8 +117,11 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
-        # 8 bit integer per color
-
+        # Decode image from A8 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_a8(width, height, bin)
             mem = String.new(capacity: width * height * 3)
             (width * height).times do |i|
@@ -113,10 +131,20 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
+        # Decode image from R8 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_r8(width, height, bin)
             decode_a8(width, height, bin)
         end
 
+        # Decode image from RG16 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rg16(width, height, bin)
             mem = String.new(capacity: width * height * 3)
             (width * height).times do |i|
@@ -125,14 +153,29 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
+        # Decode image from RGB24 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgb24(width, height, bin)
             ChunkyPNG::Image.from_rgb_stream(width, height, bin)
         end
 
+        # Decode image from RGBA32 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgba32(width, height, bin)
             ChunkyPNG::Image.from_rgba_stream(width, height, bin)
         end
 
+        # Decode image from ARGB32 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_argb32(width, height, bin)
             mem = String.new(capacity: width * height * 4)
             (width * height).times do |i|
@@ -142,6 +185,11 @@ module Mikunyan
             ChunkyPNG::Image.from_rgba_stream(width, height, mem)
         end
 
+        # Decode image from BGRA32 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_bgra32(width, height, bin)
             mem = String.new(capacity: width * height * 4)
             (width * height).times do |i|
@@ -151,8 +199,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgba_stream(width, height, mem)
         end
 
-        # 16 bit integer per color
-
+        # Decode image from R16 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_r16(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 3)
             (width * height).times do |i|
@@ -163,8 +215,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
-        # 9 bit float per color
-
+        # Decode image from RGB9e5 binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgb9e5float(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 3)
             (width * height).times do |i|
@@ -181,8 +237,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
-        # 16 bit (half) float per color
-
+        # Decode image from R Half-float binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rhalf(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 3)
             (width * height).times do |i|
@@ -192,6 +252,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
+        # Decode image from RG Half-float binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rghalf(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 3)
             (width * height).times do |i|
@@ -202,6 +268,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
+        # Decode image from RGBA Half-float binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgbahalf(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 4)
             (width * height).times do |i|
@@ -214,8 +286,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgba_stream(width, height, mem)
         end
 
-        # 32 bit float per color
-
+        # Decode image from R float binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rfloat(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 3)
             unpackstr = endian == :little ? 'e' : 'g'
@@ -226,6 +302,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
+        # Decode image from RG float binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgfloat(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 3)
             unpackstr = endian == :little ? 'e2' : 'g2'
@@ -236,6 +318,12 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(width, height, mem)
         end
 
+        # Decode image from RGBA float binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @param [Symbol] endian endianness of binary
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgbafloat(width, height, bin, endian = :big)
             mem = String.new(capacity: width * height * 4)
             unpackstr = endian == :little ? 'e4' : 'g4'
@@ -246,8 +334,11 @@ module Mikunyan
             ChunkyPNG::Image.from_rgba_stream(width, height, mem)
         end
 
-        # other formats
-
+        # Decode image from ETC1 compressed binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_etc1(width, height, bin)
             bw = (width + 3) / 4
             bh = (height + 3) / 4
@@ -263,6 +354,9 @@ module Mikunyan
             ChunkyPNG::Image.from_rgb_stream(bw * 4, bh * 4, mem.to_str).crop!(0, 0, width, height)
         end
 
+        # Create ASTC file data from ObjectValue
+        # @param [Mikunyan::ObjectValue,Hash] object target object
+        # @return [String,nil] created file
         def self.create_astc_file(object)
             astc_list = {
                 48 => 4, 49 => 5, 50 => 6, 51 => 8, 52 => 10, 53 => 12,
@@ -289,6 +383,9 @@ module Mikunyan
         end
 
         private
+
+        Etc1ModifierTable = [[2, 8], [5, 17], [9, 29], [13, 42], [18, 60], [24, 80], [33, 106], [47, 183]]
+        Etc1SubblockTable = [[0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1], [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]]
 
         def self.decode_etc1_block(bin)
             colors = []

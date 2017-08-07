@@ -1,8 +1,22 @@
 module Mikunyan
+    # Class for representing TypeTree
+    # @attr [Array<Mikunyan::TypeTree::Node>] nodes list of all nodes
     class TypeTree
         attr_accessor :nodes
+
+        # Struct for representing Node in TypeTree
+        # @attr [String] version version string
+        # @attr [Integer] depth depth of node (>= 0)
+        # @attr [Boolean] array? array node or not
+        # @attr [String] type type name
+        # @attr [String] name node (attribute) name
+        # @attr [Integer] index index in node list
+        # @attr [Integer] flags flags of node
         Node = Struct.new(:version, :depth, :array?, :type, :name, :size, :index, :flags)
 
+        # Create TypeTree from binary string (new version)
+        # @param [Mikunyan::BinaryReader] br
+        # @return [Mikunyan::TypeTree] created TypeTree
         def self.load(br)
             nodes = []
             node_count = br.i32u
@@ -28,6 +42,9 @@ module Mikunyan
             r
         end
 
+        # Create TypeTree from binary string (legacy version)
+        # @param [Mikunyan::BinaryReader] br
+        # @return [Mikunyan::TypeTree] created TypeTree
         def self.load_legacy(br)
             nodes = []
             stack = [0]
@@ -49,6 +66,9 @@ module Mikunyan
             r
         end
 
+        # Create default TypeTree from hash string (if exists)
+        # @param [String] hash
+        # @return [Mikunyan::TypeTree,nil] created TypeTree
         def self.load_default(hash)
             hash_str = hash.unpack('H*')[0]
             file = File.expand_path("../typetrees/#{hash_str}.dat", __FILE__)

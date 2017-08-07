@@ -1,18 +1,32 @@
 require 'extlz4'
 
 module Mikunyan
+    # Class for representing Unity AssetBundle
+    # @attr_reader [String] signature file signature (UnityRaw or UnityFS)
+    # @attr_reader [Integer] format file format number
+    # @attr_reader [String] unity_version version string of Unity to use this AssetBundle
+    # @attr_reader [String] generator_version version string of generator
+    # @attr_reader [Array<Mikunyan::Asset>] assets included Assets
     class AssetBundle
-        attr_accessor :signature, :format, :unity_version, :generator_version, :assets
+        attr_reader :signature, :format, :unity_version, :generator_version, :assets
 
+        # Load AssetBundle from binary string
+        # @param [String] bin binary data
+        # @return [Mikunyan::AssetBundle] deserialized AssetBundle object
         def self.load(bin)
             r = AssetBundle.new
-            r.load(bin)
+            r.send(:load, bin)
             r
         end
 
+        # Load AssetBundle from file
+        # @param [String] file file name
+        # @return [Mikunyan::AssetBundle] deserialized AssetBundle object
         def self.file(file)
             AssetBundle.load(File.binread(file))
         end
+
+        private
 
         def load(bin)
             br = BinaryReader.new(bin)
@@ -31,8 +45,6 @@ module Mikunyan
             end
         end
 
-        private
-
         def load_unity_raw(br)
             @assets = []
 
@@ -48,8 +60,7 @@ module Mikunyan
                 asset_size = br.i32u
                 br.jmp(asset_pos + asset_header_size - 4)
                 asset_data = br.read(asset_size)
-                asset = Asset.new(asset_name)
-                asset.load(asset_data)
+                asset = Asset.load(asset_data, asset_name)
                 @assets << asset
             end
         end
@@ -77,8 +88,7 @@ module Mikunyan
             blocks.each{|b| raw_data << uncompress(br.read(b[:c]), b[:u], b[:f])}
 
             asset_blocks.each do |b|
-                asset = Asset.new(b[:name])
-                asset.load(raw_data.byteslice(b[:offset], b[:size]))
+                asset = Asset.load(raw_data.byteslice(b[:offset], b[:size]), b[:name])
                 @assets << asset
             end
         end

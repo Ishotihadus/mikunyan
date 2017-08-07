@@ -103,7 +103,7 @@ obj.key
 
 You can get png file directly from Texture2D asset. Output object's class is `ChunkyPNG::Image`.
 
-Acceptable format is basic texture formats (1, 2, 3, 4, 5, 7 and 13) and ETC_RGB4 (34).
+Only some basic texture formats (1--5, 7, 9, 13--20, 22, 62, and 63) and ETC_RGB4 (34) are available.
 
 ```ruby
 require 'mikunyan/decoders'
@@ -117,6 +117,8 @@ img = Mikunyan::ImageDecoder.decode_object(obj)
 # save it!
 img.save('mikunyan.png')
 ```
+
+Mikunyan cannot decode ASTC files. Use `Mikunyan::ImageDecoder.create_astc_file` instead.
 
 ### Json / YAML Outputer
 
