@@ -58,6 +58,10 @@ module Mikunyan
                 decode_rgb9e5float(width, height, bin, endian)
             when 34
                 decode_etc1(width, height, bin)
+            when 45
+                decode_etc2rgb(width, height, bin)
+            when 47
+                decode_etc2rgba8(width, height, bin)
             when 62
                 decode_rg16(width, height, bin)
             when 63
@@ -351,7 +355,48 @@ module Mikunyan
                     end
                 end
             end
-            ChunkyPNG::Image.from_rgb_stream(bw * 4, bh * 4, mem.to_str).crop!(0, 0, width, height)
+            ChunkyPNG::Image.from_rgb_stream(bw * 4, bh * 4, mem.to_str).crop(0, 0, width, height)
+        end
+
+        # Decode image from ETC2 compressed binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
+        def self.decode_etc2rgb(width, height, bin)
+            bw = (width + 3) / 4
+            bh = (height + 3) / 4
+            mem = Fiddle::Pointer.malloc(bw * bh * 48)
+            bh.times do |by|
+                bw.times do |bx|
+                    block = decode_etc2_block(BinUtils.get_sint64_be(bin, (bx + by * bw) * 8))
+                    16.times do |i|
+                        mem[((i / 4 + bx * 4) + (i % 4 + by * 4) * bw * 4) * 3, 3] = block[i]
+                    end
+                end
+            end
+            ChunkyPNG::Image.from_rgb_stream(bw * 4, bh * 4, mem.to_str).crop(0, 0, width, height)
+        end
+
+        # Decode image from ETC2 Alpha8 compressed binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
+        def self.decode_etc2rgba8(width, height, bin)
+            bw = (width + 3) / 4
+            bh = (height + 3) / 4
+            mem = Fiddle::Pointer.malloc(bw * bh * 64)
+            bh.times do |by|
+                bw.times do |bx|
+                    alpha = decode_etc2alpha_block(BinUtils.get_int64_be(bin, (bx + by * bw) * 16))
+                    block = decode_etc2_block(BinUtils.get_int64_be(bin, (bx + by * bw) * 16 + 8))
+                    16.times do |i|
+                        mem[((i / 4 + bx * 4) + (i % 4 + by * 4) * bw * 4) * 4, 4] = block[i] + alpha[i]
+                    end
+                end
+            end
+            ChunkyPNG::Image.from_rgba_stream(bw * 4, bh * 4, mem.to_str).crop(0, 0, width, height)
         end
 
         # Create ASTC file data from ObjectValue
@@ -386,6 +431,25 @@ module Mikunyan
 
         Etc1ModifierTable = [[2, 8], [5, 17], [9, 29], [13, 42], [18, 60], [24, 80], [33, 106], [47, 183]]
         Etc1SubblockTable = [[0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1], [0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1]]
+        Etc2DistanceTable = [3, 6, 11, 16, 23, 32, 41, 64]
+        Etc2AlphaModTable = [
+            [-3, -6,  -9, -15, 2, 5, 8, 14],
+            [-3, -7, -10, -13, 2, 6, 9, 12],
+            [-2, -5,  -8, -13, 1, 4, 7, 12],
+            [-2, -4,  -6, -13, 1, 3, 5, 12],
+            [-3, -6,  -8, -12, 2, 5, 7, 11],
+            [-3, -7,  -9, -11, 2, 6, 8, 10],
+            [-4, -7,  -8, -11, 3, 6, 7, 10],
+            [-3, -5,  -8, -11, 2, 4, 7, 10],
+            [-2, -6,  -8, -10, 1, 5, 7,  9],
+            [-2, -5,  -8, -10, 1, 4, 7,  9],
+            [-2, -4,  -8, -10, 1, 3, 7,  9],
+            [-2, -5,  -7, -10, 1, 4, 6,  9],
+            [-3, -4,  -7, -10, 2, 3, 6,  9],
+            [-1, -2,  -3, -10, 0, 1, 2,  9],
+            [-4, -6,  -8,  -9, 3, 5, 7,  8],
+            [-3, -5,  -7,  -9, 2, 4, 6,  8]
+        ]
 
         def self.decode_etc1_block(bin)
             colors = []
@@ -406,12 +470,10 @@ module Mikunyan
                 colors[1] = colors[1] | (colors[1] >> 5 & 0x70707)
             end
 
-            ret = Array.new(16, 0)
-            16.times do |i|
+            (0...16).to_a.map do |i|
                 modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
-                ret[i] = etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
+                etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
             end
-            ret
         end
 
         def self.etc1colormod(color, modifier)
@@ -419,6 +481,96 @@ module Mikunyan
             g = (color >> 8 & 0xff) + modifier
             b = (color & 0xff) + modifier
             r.clamp(0, 255).chr + g.clamp(0, 255).chr + b.clamp(0, 255).chr
+        end
+
+        def self.decode_etc2_block(bin)
+            if bin[33] == 0
+                # individual
+                colors = [0, 0]
+                colors[0] = bin >> 40 & 0xf0f0f0
+                colors[0] = colors[0] | colors[0] >> 4
+                colors[1] = bin >> 36 & 0xf0f0f0
+                colors[1] = colors[1] | colors[1] >> 4
+                codes = [bin >> 37 & 7, bin >> 34 & 7]
+                subblocks = Etc1SubblockTable[bin[32]]
+                (0...16).to_a.map do |i|
+                    modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
+                    etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
+                end
+            else
+                r = bin >> 59
+                dr = (bin >> 56 & 3) - (bin >> 56 & 4)
+                g = bin >> 51 & 0x1f
+                dg = (bin >> 48 & 3) - (bin >> 48 & 4)
+                b = bin >> 43 & 0x1f
+                db = (bin >> 40 & 3) - (bin >> 40 & 4)
+                if r + dr < 0 || r + dr > 31
+                    # T mode
+                    base1 = (bin >> 49 & 0xc00) | (bin >> 48 & 0x3ff)
+                    base1 = (base1 & 0xf00) << 8 | (base1 & 0xf0) << 4 | (base1 & 0xf)
+                    base1 = (base1 << 4) | base1
+                    base2 = bin >> 36 & 0xfff
+                    base2 = (base2 & 0xf00) << 8 | (base2 & 0xf0) << 4 | (base2 & 0xf)
+                    base2 = (base2 << 4) | base2
+                    d = Etc2DistanceTable[(bin >> 33 & 6) + bin[32]]
+                    colors = [[base1].pack('N')[1,3], etc1colormod(base2, d), [base2].pack('N')[1,3], etc1colormod(base2, -d)]
+                    (0...16).to_a.map{|i| colors[bin[i] + bin[i + 16] * 2]}
+                elsif g + dg < 0 || g + dg > 31
+                    # H mode
+                    base1 = (bin >> 51 & 0xfe0) | (bin >> 48 & 0x18) | (bin >> 47 & 7)
+                    base1 = (base1 & 0xf00) << 8 | (base1 & 0xf0) << 4 | (base1 & 0xf)
+                    base1 = (base1 << 4) | base1
+                    base2 = bin >> 35 & 0xfff
+                    base2 = (base2 & 0xf00) << 8 | (base2 & 0xf0) << 4 | (base2 & 0xf)
+                    base2 = (base2 << 4) | base2
+                    d = Etc2DistanceTable[bin[34] * 2 + bin[32]]
+                    colors = [etc1colormod(base1, d), etc1colormod(base1, -d), etc1colormod(base2, d), etc1colormod(base2, -d)]
+                    (0...16).to_a.map{|i| colors[bin[i] + bin[i + 16] * 2]}
+                elsif b + db < 0 || b + db > 31
+                    # planar mode
+                    color_or = (bin >> 55 & 0xfc) | (bin >> 61 & 0x03)
+                    color_og = (bin >> 49 & 0x80) | (bin >> 48 & 0x7e) | bin[56]
+                    color_ob = (bin >> 41 & 0x80) | (bin >> 38 & 0x60) | (bin >> 37 & 0x1c) | (bin >> 47 & 2) | bin[44]
+                    color_hr = (bin >> 31 & 0xf8) | (bin >> 30 & 0x04) | (bin >> 37 & 0x03)
+                    color_hg = (bin >> 24 & 0xfe) | bin[31]
+                    color_hb = (bin >> 17 & 0xfc) | (bin >> 23 & 0x03)
+                    color_vr = (bin >> 11 & 0xfc) | (bin >> 17 & 0x03)
+                    color_vg = (bin >>  5 & 0xfe) | bin[12]
+                    color_vb = (bin <<  2 & 0xfc) | (bin >>  4 & 0x03)
+                    (0...16).to_a.map do |i|
+                        x = i / 4
+                        y = i % 4
+                        r = (x * (color_hr - color_or) + y * (color_vr - color_or) + 4 * color_or + 2) >> 2
+                        g = (x * (color_hg - color_og) + y * (color_vg - color_og) + 4 * color_og + 2) >> 2
+                        b = (x * (color_hb - color_ob) + y * (color_vb - color_ob) + 4 * color_ob + 2) >> 2
+                        r.clamp(0, 255).chr + g.clamp(0, 255).chr + b.clamp(0, 255).chr
+                    end
+                else
+                    # differential mode
+                    colors = [0, 0]
+                    colors[0] = bin >> 40 & 0xf8f8f8
+                    colors[1] = colors[0] + (dr << 19) + (dg << 11) + (db << 3)
+                    colors[0] = colors[0] | (colors[0] >> 5 & 0x70707)
+                    colors[1] = colors[1] | (colors[1] >> 5 & 0x70707)
+                    codes = [bin >> 37 & 7, bin >> 34 & 7]
+                    subblocks = Etc1SubblockTable[bin[32]]
+                    (0...16).to_a.map do |i|
+                        modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
+                        etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
+                    end
+                end
+            end
+        end
+
+        def self.decode_etc2alpha_block(bin)
+            if bin & 0xf0000000000000 == 0
+                Array.new(16, (bin >> 56).chr)
+            else
+                base = bin >> 56
+                mult = bin >> 52 & 0xf
+                table = Etc2AlphaModTable[bin >> 48 & 0xf]
+                (0...16).to_a.map{|i| (base + table[bin >> i*3 & 7] * mult).clamp(0, 255).chr}
+            end
         end
 
         # convert 16bit float
