@@ -104,7 +104,7 @@ obj.key
 
 You can get png file directly from Texture2D asset. Output object's class is `ChunkyPNG::Image`.
 
-Only some basic texture formats (1--5, 7, 9, 13--20, 22, 62, and 63) and ETC_RGB4 (34) are available.
+Only some basic texture formats (1--5, 7, 9, 13--20, 22, 62, and 63), ETC_RGB4 (34), and ETC2 (45, 47) are available.
 
 ```ruby
 require 'mikunyan/decoders'
