@@ -29,11 +29,11 @@ module Mikunyan
             when 2
                 decode_argb4444(width, height, bin, endian)
             when 3
-                decode_rgb888(width, height, bin)
+                decode_rgb24(width, height, bin)
             when 4
-                decode_rgba8888(width, height, bin)
+                decode_rgba32(width, height, bin)
             when 5
-                decode_argb8888(width, height, bin)
+                decode_argb32(width, height, bin)
             when 7
                 decode_rgb565(width, height, bin, endian)
             when 9
@@ -41,7 +41,7 @@ module Mikunyan
             when 13
                 decode_rgba4444(width, height, bin, endian)
             when 14
-                decode_bgra8888(width, height, bin)
+                decode_bgra32(width, height, bin)
             when 15
                 decode_rhalf(width, height, bin, endian)
             when 16
