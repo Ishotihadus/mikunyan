@@ -39,7 +39,7 @@ while i < ARGV.count
     i += 1
 end
 
-if option[:pretty] && option[:yaml]
+if opts[:pretty] && opts[:yaml]
     warn("Option --pretty is ignored if --yaml is specified.")
 end
 
