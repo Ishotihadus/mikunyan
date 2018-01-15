@@ -359,16 +359,14 @@ module Mikunyan
         def self.decode_etc1(width, height, bin)
             bw = (width + 3) / 4
             bh = (height + 3) / 4
-            mem = Fiddle::Pointer.malloc(bw * bh * 48)
+            ret = ChunkyPNG::Image.new(bw * 4, bh * 4)
             bh.times do |by|
                 bw.times do |bx|
                     block = decode_etc1_block(BinUtils.get_sint64_be(bin, (bx + by * bw) * 8))
-                    16.times do |i|
-                        mem[((i / 4 + bx * 4) + (i % 4 + by * 4) * bw * 4) * 3, 3] = block[i]
-                    end
+                    ret.replace!(ChunkyPNG::Image.from_rgb_stream(4, 4, block), bx * 4, by * 4)
                 end
             end
-            ChunkyPNG::Image.from_rgb_stream(bw * 4, bh * 4, mem.to_str).crop(0, 0, width, height)
+            ret.crop(0, 0, width, height)
         end
 
         # Decode image from ETC2 compressed binary
@@ -379,16 +377,14 @@ module Mikunyan
         def self.decode_etc2rgb(width, height, bin)
             bw = (width + 3) / 4
             bh = (height + 3) / 4
-            mem = Fiddle::Pointer.malloc(bw * bh * 48)
+            ret = ChunkyPNG::Image.new(bw * 4, bh * 4)
             bh.times do |by|
                 bw.times do |bx|
                     block = decode_etc2_block(BinUtils.get_sint64_be(bin, (bx + by * bw) * 8))
-                    16.times do |i|
-                        mem[((i / 4 + bx * 4) + (i % 4 + by * 4) * bw * 4) * 3, 3] = block[i]
-                    end
+                    ret.replace!(ChunkyPNG::Image.from_rgb_stream(4, 4, block), bx * 4, by * 4)
                 end
             end
-            ChunkyPNG::Image.from_rgb_stream(bw * 4, bh * 4, mem.to_str).crop(0, 0, width, height)
+            ret.crop(0, 0, width, height)
         end
 
         # Decode image from ETC2 Alpha8 compressed binary
@@ -502,7 +498,7 @@ module Mikunyan
                 colors[1] = colors[1] | (colors[1] >> 5 & 0x70707)
             end
 
-            (0...16).to_a.map do |i|
+            (0...16).map do |i|
                 modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
                 etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
             end
@@ -525,7 +521,7 @@ module Mikunyan
                 colors[1] = colors[1] | colors[1] >> 4
                 codes = [bin >> 37 & 7, bin >> 34 & 7]
                 subblocks = Etc1SubblockTable[bin[32]]
-                (0...16).to_a.map do |i|
+                (0...16).map do |i|
                     modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
                     etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
                 end
@@ -546,7 +542,7 @@ module Mikunyan
                     base2 = (base2 << 4) | base2
                     d = Etc2DistanceTable[(bin >> 33 & 6) + bin[32]]
                     colors = [[base1].pack('N')[1,3], etc1colormod(base2, d), [base2].pack('N')[1,3], etc1colormod(base2, -d)]
-                    (0...16).to_a.map{|i| colors[bin[i] + bin[i + 16] * 2]}
+                    (0...16).map{|i| colors[bin[i] + bin[i + 16] * 2]}
                 elsif g + dg < 0 || g + dg > 31
                     # H mode
                     base1 = (bin >> 51 & 0xfe0) | (bin >> 48 & 0x18) | (bin >> 47 & 7)
@@ -557,7 +553,7 @@ module Mikunyan
                     base2 = (base2 << 4) | base2
                     d = Etc2DistanceTable[bin[34] * 2 + bin[32]]
                     colors = [etc1colormod(base1, d), etc1colormod(base1, -d), etc1colormod(base2, d), etc1colormod(base2, -d)]
-                    (0...16).to_a.map{|i| colors[bin[i] + bin[i + 16] * 2]}
+                    (0...16).map{|i| colors[bin[i] + bin[i + 16] * 2]}
                 elsif b + db < 0 || b + db > 31
                     # planar mode
                     color_or = (bin >> 55 & 0xfc) | (bin >> 61 & 0x03)
@@ -569,7 +565,7 @@ module Mikunyan
                     color_vr = (bin >> 11 & 0xfc) | (bin >> 17 & 0x03)
                     color_vg = (bin >>  5 & 0xfe) | bin[12]
                     color_vb = (bin <<  2 & 0xfc) | (bin >>  4 & 0x03)
-                    (0...16).to_a.map do |i|
+                    (0...16).map do |i|
                         x = i / 4
                         y = i % 4
                         r = (x * (color_hr - color_or) + y * (color_vr - color_or) + 4 * color_or + 2) >> 2
@@ -586,7 +582,7 @@ module Mikunyan
                     colors[1] = colors[1] | (colors[1] >> 5 & 0x70707)
                     codes = [bin >> 37 & 7, bin >> 34 & 7]
                     subblocks = Etc1SubblockTable[bin[32]]
-                    (0...16).to_a.map do |i|
+                    (0...16).map do |i|
                         modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
                         etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
                     end
@@ -601,7 +597,7 @@ module Mikunyan
                 base = bin >> 56
                 mult = bin >> 52 & 0xf
                 table = Etc2AlphaModTable[bin >> 48 & 0xf]
-                (0...16).to_a.map{|i| (base + table[bin >> i*3 & 7] * mult).clamp(0, 255).chr}
+                (0...16).map{|i| (base + table[bin >> i*3 & 7] * mult).clamp(0, 255).chr}
             end
         end
 
