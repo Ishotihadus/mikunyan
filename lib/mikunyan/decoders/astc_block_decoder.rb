@@ -345,24 +345,20 @@ module Mikunyan
                     sh.reverse! if seed & 1 == 0
                     seeds.map!.with_index{|e, i| e >> sh[i % 2]}
 
-                    @partition = Array.new(@bw * @bh)
-
-                    for y in 0...@bh
-                        for x in 0...@bw
-                            idx = x + y * @bw
-
-                            if small_block
-                                x <<= 1
-                                y <<= 1
-                            end
-
-                            a = (seeds[0] * x + seeds[1] * y + (rnum >> 14)) & 0x3f
-                            b = (seeds[2] * x + seeds[3] * y + (rnum >> 10)) & 0x3f
-                            c = @part_num < 3 ? 0 : (seeds[4] * x + seeds[5] * y + (rnum >> 6)) & 0x3f
-                            d = @part_num < 4 ? 0 : (seeds[6] * x + seeds[7] * y + (rnum >> 2)) & 0x3f
-
-                            @partition[idx] = 3 - [d, c, b, a].each_with_index.max[1]
+                    @partition = (0...@bw * @bh).map do |i|
+                        x = i % @bw
+                        y = i / @bw
+                        if small_block
+                            x <<= 1
+                            y <<= 1
                         end
+
+                        a = (seeds[0] * x + seeds[1] * y + (rnum >> 14)) & 0x3f
+                        b = (seeds[2] * x + seeds[3] * y + (rnum >> 10)) & 0x3f
+                        c = @part_num < 3 ? 0 : (seeds[4] * x + seeds[5] * y + (rnum >> 6)) & 0x3f
+                        d = @part_num < 4 ? 0 : (seeds[6] * x + seeds[7] * y + (rnum >> 2)) & 0x3f
+
+                        3 - [d, c, b, a].each_with_index.max[1]
                     end
                 end
             end
