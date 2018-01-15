@@ -133,6 +133,17 @@ Available options:
 - `--pretty` (`-p`): prettify output json (`mikunyan-json` only)
 - `--yaml` (`-y`): YAML mode
 
+### Image Outputer
+
+`mikunyan-image` is an executable command for unpacking images from unity3d.
+
+    $ mikunyan-image bundle.unity3d
+
+Available options:
+
+- `--as-asset` (`-a`): interpret input file as not AssetBudnle but Asset
+- `--outputdir` (`-o`): output directory (default is a basename of input file without an extention)
+
 ## Dependencies
 
 - [json](https://rubygems.org/gems/json)
