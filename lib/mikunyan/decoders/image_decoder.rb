@@ -359,14 +359,14 @@ module Mikunyan
         def self.decode_etc1(width, height, bin)
             bw = (width + 3) / 4
             bh = (height + 3) / 4
-            ret = ChunkyPNG::Image.new(bw * 4, bh * 4)
+            ret = ChunkyPNG::Image.new(bh * 4, bw * 4)
             bh.times do |by|
                 bw.times do |bx|
                     block = decode_etc1_block(BinUtils.get_sint64_be(bin, (bx + by * bw) * 8))
-                    ret.replace!(ChunkyPNG::Image.from_rgb_stream(4, 4, block), bx * 4, by * 4)
+                    ret.replace!(ChunkyPNG::Image.from_rgb_stream(4, 4, block), by * 4, bx * 4)
                 end
             end
-            ret.crop(0, 0, width, height)
+            ret.crop(0, 0, height, width).rotate_left
         end
 
         # Decode image from ETC2 compressed binary
@@ -377,14 +377,14 @@ module Mikunyan
         def self.decode_etc2rgb(width, height, bin)
             bw = (width + 3) / 4
             bh = (height + 3) / 4
-            ret = ChunkyPNG::Image.new(bw * 4, bh * 4)
+            ret = ChunkyPNG::Image.new(bh * 4, bw * 4)
             bh.times do |by|
                 bw.times do |bx|
                     block = decode_etc2_block(BinUtils.get_sint64_be(bin, (bx + by * bw) * 8))
-                    ret.replace!(ChunkyPNG::Image.from_rgb_stream(4, 4, block), bx * 4, by * 4)
+                    ret.replace!(ChunkyPNG::Image.from_rgb_stream(4, 4, block.join), by * 4, bx * 4)
                 end
             end
-            ret.crop(0, 0, width, height)
+            ret.crop(0, 0, height, width).rotate_left
         end
 
         # Decode image from ETC2 Alpha8 compressed binary
@@ -395,17 +395,17 @@ module Mikunyan
         def self.decode_etc2rgba8(width, height, bin)
             bw = (width + 3) / 4
             bh = (height + 3) / 4
-            mem = Fiddle::Pointer.malloc(bw * bh * 64)
+            ret = ChunkyPNG::Image.new(bh * 4, bw * 4)
             bh.times do |by|
                 bw.times do |bx|
                     alpha = decode_etc2alpha_block(BinUtils.get_int64_be(bin, (bx + by * bw) * 16))
                     block = decode_etc2_block(BinUtils.get_int64_be(bin, (bx + by * bw) * 16 + 8))
-                    16.times do |i|
-                        mem[((i / 4 + bx * 4) + (i % 4 + by * 4) * bw * 4) * 4, 4] = block[i] + alpha[i]
-                    end
+                    mem = String.new(capacity: 64)
+                    16.times{|i| mem << block[i] + alpha[i]}
+                    ret.replace!(ChunkyPNG::Image.from_rgba_stream(4, 4, mem), by * 4, bx * 4)
                 end
             end
-            ChunkyPNG::Image.from_rgba_stream(bw * 4, bh * 4, mem.to_str).crop(0, 0, width, height)
+            ret.crop(0, 0, height, width).rotate_left
         end
 
         # Decode image from ASTC compressed binary
@@ -498,10 +498,12 @@ module Mikunyan
                 colors[1] = colors[1] | (colors[1] >> 5 & 0x70707)
             end
 
-            (0...16).map do |i|
+            mem = Fiddle::Pointer.malloc(48)
+            16.times do |i|
                 modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
-                etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
+                mem[i * 3, 3] = etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
             end
+            mem.to_str
         end
 
         def self.etc1colormod(color, modifier)
