@@ -97,7 +97,7 @@ module Mikunyan
                 c = ((c & 0xf000) << 12) | ((c & 0x0f00) << 8) | ((c & 0x00f0) << 4) | (c & 0x000f)
                 BinUtils.append_int32_be!(mem, c << 4 | c)
             end
-            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
         end
 
         # Decode image from ARGB4444 binary
@@ -113,7 +113,7 @@ module Mikunyan
                 c = ((c & 0x0f00) << 16) | ((c & 0x00f0) << 12) | ((c & 0x000f) << 8) | ((c & 0xf000) >> 12)
                 BinUtils.append_int32_be!(mem, c << 4 | c)
             end
-            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
         end
 
         # Decode image from RGB565 binary
@@ -131,7 +131,7 @@ module Mikunyan
                 b = (c & 0x001f) << 3
                 BinUtils.append_int8!(mem, r | r >> 5, g | g >> 6, b | b >> 5)
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from A8 binary
@@ -145,7 +145,7 @@ module Mikunyan
                 c = BinUtils.get_int8(bin, i)
                 BinUtils.append_int8!(mem, c, c, c)
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from R8 binary
@@ -154,7 +154,7 @@ module Mikunyan
         # @param [String] bin binary to decode
         # @return [ChunkyPNG::Image] decoded image
         def self.decode_r8(width, height, bin)
-            decode_a8(width, height, bin)
+            decode_a8(width, height, bin).flip
         end
 
         # Decode image from RG16 binary
@@ -167,7 +167,7 @@ module Mikunyan
             (width * height).times do |i|
                 BinUtils.append_int16_int8_be!(mem, BinUtils.get_int16_be(bin, i*2), 0)
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from RGB24 binary
@@ -176,7 +176,7 @@ module Mikunyan
         # @param [String] bin binary to decode
         # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgb24(width, height, bin)
-            ChunkyPNG::Image.from_rgb_stream(width, height, bin)
+            ChunkyPNG::Image.from_rgb_stream(width, height, bin).flip
         end
 
         # Decode image from RGBA32 binary
@@ -185,7 +185,7 @@ module Mikunyan
         # @param [String] bin binary to decode
         # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgba32(width, height, bin)
-            ChunkyPNG::Image.from_rgba_stream(width, height, bin)
+            ChunkyPNG::Image.from_rgba_stream(width, height, bin).flip
         end
 
         # Decode image from ARGB32 binary
@@ -199,7 +199,7 @@ module Mikunyan
                 c = BinUtils.get_int32_be(bin, i*4)
                 BinUtils.append_int32_be!(mem, ((c & 0x00ffffff) << 8) | ((c & 0xff000000) >> 24))
             end
-            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
         end
 
         # Decode image from BGRA32 binary
@@ -213,7 +213,7 @@ module Mikunyan
                 c = BinUtils.get_int32_le(bin, i*4)
                 BinUtils.append_int32_be!(mem, ((c & 0x00ffffff) << 8) | ((c & 0xff000000) >> 24))
             end
-            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
         end
 
         # Decode image from R16 binary
@@ -229,7 +229,7 @@ module Mikunyan
                 c = f2i(r / 65535.0)
                 BinUtils.append_int8!(mem, c, c, c)
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from RGB9e5 binary
@@ -251,7 +251,7 @@ module Mikunyan
                 b = (b / 512r + 1) * (2**(e-15))
                 BinUtils.append_int8!(mem, f2i(r), f2i(g), f2i(b))
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from R Half-float binary
@@ -266,7 +266,7 @@ module Mikunyan
                 c = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*2) : BinUtils.get_int16_be(bin, i*2)))
                 BinUtils.append_int8!(mem, c, c, c)
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from RG Half-float binary
@@ -282,7 +282,7 @@ module Mikunyan
                 g = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*4+2) : BinUtils.get_int16_be(bin, i*4+2)))
                 BinUtils.append_int8!(mem, r, g, 0)
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from RGBA Half-float binary
@@ -300,7 +300,7 @@ module Mikunyan
                 a = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i*8+6) : BinUtils.get_int16_be(bin, i*8+6)))
                 BinUtils.append_int8!(mem, r, g, b, a)
             end
-            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
         end
 
         # Decode image from R float binary
@@ -316,7 +316,7 @@ module Mikunyan
                 c = f2i(bin.byteslice(i*4, 4).unpack(unpackstr)[0])
                 BinUtils.append_int8!(mem, c, c, c)
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from RG float binary
@@ -332,7 +332,7 @@ module Mikunyan
                 r, g = bin.byteslice(i*8, 8).unpack(unpackstr)
                 BinUtils.append_int8!(mem, f2i(r), f2i(g), 0)
             end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
         end
 
         # Decode image from RGBA float binary
@@ -348,7 +348,7 @@ module Mikunyan
                 r, g, b, a = bin.byteslice(i*16, 16).unpack(unpackstr)
                 BinUtils.append_int8!(mem, f2i(r), f2i(g), f2i(b), f2i(a))
             end
-            ChunkyPNG::Image.from_rgba_stream(width, height, mem)
+            ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
         end
 
         # Decode image from ETC1 compressed binary
