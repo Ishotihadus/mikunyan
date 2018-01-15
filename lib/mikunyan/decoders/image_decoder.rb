@@ -1,6 +1,7 @@
 begin; require 'oily_png'; rescue LoadError; require 'chunky_png'; end
 require 'bin_utils'
 require 'fiddle'
+require 'mikunyan/decoders/astc_block_decoder'
 
 module Mikunyan
     # Class for image decoding tools
@@ -62,6 +63,18 @@ module Mikunyan
                 decode_etc2rgb(width, height, bin)
             when 47
                 decode_etc2rgba8(width, height, bin)
+            when 48, 54
+                decode_astc(width, height, 4, bin)
+            when 49, 55
+                decode_astc(width, height, 5, bin)
+            when 50, 56
+                decode_astc(width, height, 6, bin)
+            when 51, 57
+                decode_astc(width, height, 8, bin)
+            when 52, 58
+                decode_astc(width, height, 10, bin)
+            when 53, 59
+                decode_astc(width, height, 12, bin)
             when 62
                 decode_rg16(width, height, bin)
             when 63
@@ -397,6 +410,25 @@ module Mikunyan
                 end
             end
             ChunkyPNG::Image.from_rgba_stream(bw * 4, bh * 4, mem.to_str).crop(0, 0, width, height)
+        end
+
+        # Decode image from ASTC compressed binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [Integer] blocksize block size
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
+        def self.decode_astc(width, height, blocksize, bin)
+            bw = (width + blocksize - 1) / blocksize
+            bh = (height + blocksize - 1) / blocksize
+            ret = ChunkyPNG::Image.new(bw * blocksize, bh * blocksize)
+            bh.times do |by|
+                bw.times do |bx|
+                    block = DecodeHelper::AstcBlockDecoder.new(bin.byteslice((by * bw + bx) * 16, 16), blocksize, blocksize).data
+                    ret.replace!(ChunkyPNG::Image.from_rgba_stream(blocksize, blocksize, block), bx * blocksize, by * blocksize)
+                end
+            end
+            ret.crop(0, 0, width, height).flip
         end
 
         # Create ASTC file data from ObjectValue
