@@ -121,7 +121,7 @@ img.save('mikunyan.png')
 
 Mikunyan cannot decode ASTC with HDR data. Use `Mikunyan::ImageDecoder.create_astc_file` instead.
 
-### Json / YAML Outputer
+### Json / YAML Outputter
 
 `mikunyan-json` is an executable command for converting unity3d to json.
 
@@ -133,7 +133,7 @@ Available options:
 - `--pretty` (`-p`): prettify output json (`mikunyan-json` only)
 - `--yaml` (`-y`): YAML mode
 
-### Image Outputer
+### Image Outputter
 
 `mikunyan-image` is an executable command for unpacking images from unity3d.
 
