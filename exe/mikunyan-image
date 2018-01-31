@@ -2,8 +2,9 @@
 require 'mikunyan'
 require 'mikunyan/decoders'
 require 'fileutils'
+require 'json'
 
-opts = {:as_asset => false, :outputdir => nil, :sprite => false}
+opts = {:as_asset => false, :outputdir => nil, :sprite => false, :pretty => false}
 arg = nil
 i = 0
 while i < ARGV.count
@@ -16,6 +17,8 @@ while i < ARGV.count
             opts[:outputdir] = ARGV[i]
         when '--sprite', '-s'
             opts[:sprite] = true
+        when '--pretty', '-p'
+            opts[:pretty] = true
         else
             warn("Unknown option: #{ARGV[i]}")
         end
@@ -48,6 +51,7 @@ FileUtils.mkpath(outdir)
 
 assets.each do |asset|
     if opts[:sprite]
+        json = {}
         textures = {}
 
         asset.path_ids.select{|path_id| asset.object_type(path_id) == 'Sprite'}.each do |path_id|
@@ -58,25 +62,31 @@ assets.each do |asset|
             unless textures[tex_id]
                 tex_obj = asset.parse_object(tex_id)
                 textures[tex_id] = Mikunyan::ImageDecoder.decode_object(tex_obj) if tex_obj
+                json[tex_id] = {:name => tex_obj.m_Name.value, :width => textures[tex_id].width, :height => textures[tex_id].height, :path_id => tex_id, :sprites => []}
             end
 
             if textures[tex_id]
-                x = obj.m_Rect.x.value.to_i
-                y = obj.m_Rect.y.value.to_i
-                width = obj.m_Rect.width.value.to_i
-                height = obj.m_Rect.height.value.to_i
+                x = obj.m_Rect.x.value
+                y = obj.m_Rect.y.value
+                width = obj.m_Rect.width.value
+                height = obj.m_Rect.height.value
 
-                puts "#{outdir}/#{name}.png (#{width} x #{height})"
-                textures[tex_id].crop(x, textures[tex_id].height - height - y, width, height).save("#{outdir}/#{name}.png")
+                json[tex_id][:sprites] << {:name => name, :x => x, :y => y, :width => width, :height => height, :path_id => path_id}
+                textures[tex_id].crop(x.round, (textures[tex_id].height - height - y).round, width.round, height.round).save("#{outdir}/#{name}.png")
             end
         end
+        puts opts[:pretty] ? JSON.pretty_generate(json.values) : JSON.generate(json.values)
     else
+        json = []
         asset.path_ids.select{|path_id| asset.object_type(path_id) == 'Texture2D'}.each do |path_id|
             obj = asset.parse_object(path_id)
             name = obj.m_Name.value
             image = Mikunyan::ImageDecoder.decode_object(obj)
-            puts "#{outdir}/#{name}.png (#{image.width} x #{image.height})"
-            image.save("#{outdir}/#{name}.png") if image
+            if image
+                json << {:name => name, :width => image.width, :height => image.height, :path_id => path_id}
+                image.save("#{outdir}/#{name}.png")
+            end
         end
+        puts opts[:pretty] ? JSON.pretty_generate(json) : JSON.generate(json)
     end
 end
