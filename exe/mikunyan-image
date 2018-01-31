@@ -3,7 +3,7 @@ require 'mikunyan'
 require 'mikunyan/decoders'
 require 'fileutils'
 
-opts = {:as_asset => false, :outputdir => nil}
+opts = {:as_asset => false, :outputdir => nil, :sprite => false}
 arg = nil
 i = 0
 while i < ARGV.count
@@ -14,6 +14,8 @@ while i < ARGV.count
         when '--outputdir', '-o'
             i += 1
             opts[:outputdir] = ARGV[i]
+        when '--sprite', '-s'
+            opts[:sprite] = true
         else
             warn("Unknown option: #{ARGV[i]}")
         end
@@ -45,11 +47,36 @@ outdir = opts[:outputdir] || File.basename(arg, '.*')
 FileUtils.mkpath(outdir)
 
 assets.each do |asset|
-    asset.path_ids.select{|path_id| asset.object_type(path_id) == 'Texture2D'}.each do |path_id|
-        obj = asset.parse_object(path_id)
-        name = obj.m_Name.value
-        image = Mikunyan::ImageDecoder.decode_object(obj)
-        puts "#{outdir}/#{name}.png (#{image.width} x #{image.height})"
-        image.save("#{outdir}/#{name}.png") if image
+    if opts[:sprite]
+        textures = {}
+
+        asset.path_ids.select{|path_id| asset.object_type(path_id) == 'Sprite'}.each do |path_id|
+            obj = asset.parse_object(path_id)
+            name = obj.m_Name.value
+            tex_id = obj.m_RD.texture.m_PathID.value
+
+            unless textures[tex_id]
+                tex_obj = asset.parse_object(tex_id)
+                textures[tex_id] = Mikunyan::ImageDecoder.decode_object(tex_obj) if tex_obj
+            end
+
+            if textures[tex_id]
+                x = obj.m_Rect.x.value.to_i
+                y = obj.m_Rect.y.value.to_i
+                width = obj.m_Rect.width.value.to_i
+                height = obj.m_Rect.height.value.to_i
+
+                puts "#{outdir}/#{name}.png (#{width} x #{height})"
+                textures[tex_id].crop(x, textures[tex_id].height - height - y, width, height).save("#{outdir}/#{name}.png")
+            end
+        end
+    else
+        asset.path_ids.select{|path_id| asset.object_type(path_id) == 'Texture2D'}.each do |path_id|
+            obj = asset.parse_object(path_id)
+            name = obj.m_Name.value
+            image = Mikunyan::ImageDecoder.decode_object(obj)
+            puts "#{outdir}/#{name}.png (#{image.width} x #{image.height})"
+            image.save("#{outdir}/#{name}.png") if image
+        end
     end
 end
