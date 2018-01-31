@@ -130,7 +130,7 @@ Mikunyan cannot decode ASTC with HDR data. Use `Mikunyan::ImageDecoder.create_as
 Available options:
 
 - `--as-asset` (`-a`): interpret input file as not AssetBudnle but Asset
-- `--pretty` (`-p`): prettify output json (`mikunyan-json` only)
+- `--pretty` (`-p`): prettify output json
 - `--yaml` (`-y`): YAML mode
 
 ### Image Outputter
@@ -139,10 +139,86 @@ Available options:
 
     $ mikunyan-image bundle.unity3d
 
+The console log is json data of output textures as below.
+
+```json
+[
+    {
+        "name": "bg_b",
+        "width": 1024,
+        "height": 1024,
+        "path_id": -744818715421265689
+    },
+    {
+        "name": "bg_a",
+        "width": 1024,
+        "height": 1024,
+        "path_id": 5562124901460497987
+    }
+]
+```
+
+If the option `--sprite` specified, `mikunyan-image` will output sprites. The log json also contains sprite information.
+
+```json
+[
+    {
+        "name": "bg_a",
+        "width": 1024,
+        "height": 1024,
+        "path_id": 5562124901460497987,
+        "sprites": [
+            {
+                "name": "bg_a_0",
+                "x": 1.0,
+                "y": 303.0,
+                "width": 1022.0,
+                "height": 720.0,
+                "path_id": -7546240288260780845
+            },
+            {
+                "name": "bg_a_1",
+                "x": 1.0,
+                "y": 1.0,
+                "width": 720.0,
+                "height": 258.0,
+                "path_id": -5293490190204738553
+            }
+        ]
+    },
+    {
+        "name": "bg_b",
+        "width": 1024,
+        "height": 1024,
+        "path_id": -744818715421265689,
+        "sprites": [
+            {
+                "name": "bg_b_1",
+                "x": 1.0,
+                "y": 1.0,
+                "width": 720.0,
+                "height": 258.0,
+                "path_id": 4884595733995530103
+            },
+            {
+                "name": "bg_b_0",
+                "x": 1.0,
+                "y": 303.0,
+                "width": 1022.0,
+                "height": 720.0,
+                "path_id": 7736251300187116441
+            }
+        ]
+    }
+]
+```
+
 Available options:
 
 - `--as-asset` (`-a`): interpret input file as not AssetBudnle but Asset
 - `--outputdir` (`-o`): output directory (default is a basename of input file without an extention)
+- `--sprite` (`-s`): output sprites instead of textures
+- `--pretty` (`-p`): prettify output json
 
 ## Dependencies
 
