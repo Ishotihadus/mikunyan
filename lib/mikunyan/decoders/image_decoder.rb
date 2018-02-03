@@ -599,7 +599,7 @@ module Mikunyan
                 base = bin >> 56
                 mult = bin >> 52 & 0xf
                 table = Etc2AlphaModTable[bin >> 48 & 0xf]
-                (0...16).map{|i| (base + table[bin >> i*3 & 7] * mult).clamp(0, 255).chr}
+                (0...16).reverse_each.map{|i| (base + table[bin >> i*3 & 7] * mult).clamp(0, 255).chr}
             end
         end
 
