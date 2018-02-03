@@ -54,8 +54,8 @@ assets.each do |asset|
         json = {}
         textures = {}
 
-        asset.path_ids.select{|path_id| asset.object_type(path_id) == 'Sprite'}.each do |path_id|
-            obj = asset.parse_object(path_id)
+        asset.objects.select{|o| asset.object_type(o) == 'Sprite'}.each do |o|
+            obj = asset.parse_object(o)
             name = obj.m_Name.value
             tex_id = obj.m_RD.texture.m_PathID.value
 
@@ -71,19 +71,19 @@ assets.each do |asset|
                 width = obj.m_Rect.width.value
                 height = obj.m_Rect.height.value
 
-                json[tex_id][:sprites] << {:name => name, :x => x, :y => y, :width => width, :height => height, :path_id => path_id}
+                json[tex_id][:sprites] << {:name => name, :x => x, :y => y, :width => width, :height => height, :path_id => o.path_id}
                 textures[tex_id].crop(x.round, (textures[tex_id].height - height - y).round, width.round, height.round).save("#{outdir}/#{name}.png")
             end
         end
         puts opts[:pretty] ? JSON.pretty_generate(json.values) : JSON.generate(json.values)
     else
         json = []
-        asset.path_ids.select{|path_id| asset.object_type(path_id) == 'Texture2D'}.each do |path_id|
-            obj = asset.parse_object(path_id)
+        asset.objects.select{|o| asset.object_type(o) == 'Texture2D'}.each do |o|
+            obj = asset.parse_object(o)
             name = obj.m_Name.value
             image = Mikunyan::ImageDecoder.decode_object(obj)
             if image
-                json << {:name => name, :width => image.width, :height => image.height, :path_id => path_id}
+                json << {:name => name, :width => image.width, :height => image.height, :path_id => o.path_id}
                 image.save("#{outdir}/#{name}.png")
             end
         end
