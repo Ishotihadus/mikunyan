@@ -1,6 +1,5 @@
 begin; require 'oily_png'; rescue LoadError; require 'chunky_png'; end
 require 'bin_utils'
-require 'fiddle'
 require 'mikunyan/decoders/astc_block_decoder'
 
 module Mikunyan
@@ -154,7 +153,7 @@ module Mikunyan
         # @param [String] bin binary to decode
         # @return [ChunkyPNG::Image] decoded image
         def self.decode_r8(width, height, bin)
-            decode_a8(width, height, bin).flip
+            decode_a8(width, height, bin)
         end
 
         # Decode image from RG16 binary
@@ -381,7 +380,7 @@ module Mikunyan
             bh.times do |by|
                 bw.times do |bx|
                     block = decode_etc2_block(BinUtils.get_sint64_be(bin, (bx + by * bw) * 8))
-                    ret.replace!(ChunkyPNG::Image.from_rgb_stream(4, 4, block.join), by * 4, bx * 4)
+                    ret.replace!(ChunkyPNG::Image.from_rgb_stream(4, 4, block), by * 4, bx * 4)
                 end
             end
             ret.crop(0, 0, height, width).rotate_left
@@ -401,7 +400,7 @@ module Mikunyan
                     alpha = decode_etc2alpha_block(BinUtils.get_int64_be(bin, (bx + by * bw) * 16))
                     block = decode_etc2_block(BinUtils.get_int64_be(bin, (bx + by * bw) * 16 + 8))
                     mem = String.new(capacity: 64)
-                    16.times{|i| mem << block[i] + alpha[i]}
+                    16.times{|i| BinUtils.append_string!(mem, block[i * 3, 3] + alpha[15 - i])}
                     ret.replace!(ChunkyPNG::Image.from_rgba_stream(4, 4, mem), by * 4, bx * 4)
                 end
             end
@@ -498,12 +497,19 @@ module Mikunyan
                 colors[1] = colors[1] | (colors[1] >> 5 & 0x70707)
             end
 
-            mem = Fiddle::Pointer.malloc(48)
+            mem = String.new(capacity: 48)
             16.times do |i|
                 modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
-                mem[i * 3, 3] = etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
+                etc1colormod_append(mem, colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
             end
-            mem.to_str
+            mem
+        end
+
+        def self.etc1colormod_append(str, color, modifier)
+            r = (color >> 16 & 0xff) + modifier
+            g = (color >> 8 & 0xff) + modifier
+            b = (color & 0xff) + modifier
+            BinUtils.append_int8!(str, r.clamp(0, 255), g.clamp(0, 255), b.clamp(0, 255))
         end
 
         def self.etc1colormod(color, modifier)
@@ -514,6 +520,7 @@ module Mikunyan
         end
 
         def self.decode_etc2_block(bin)
+            mem = String.new(capacity: 48)
             if bin[33] == 0
                 # individual
                 colors = [0, 0]
@@ -523,9 +530,9 @@ module Mikunyan
                 colors[1] = colors[1] | colors[1] >> 4
                 codes = [bin >> 37 & 7, bin >> 34 & 7]
                 subblocks = Etc1SubblockTable[bin[32]]
-                (0...16).map do |i|
+                16.times do |i|
                     modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
-                    etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
+                    etc1colormod_append(mem, colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
                 end
             else
                 r = bin >> 59
@@ -544,7 +551,9 @@ module Mikunyan
                     base2 = (base2 << 4) | base2
                     d = Etc2DistanceTable[(bin >> 33 & 6) + bin[32]]
                     colors = [[base1].pack('N')[1,3], etc1colormod(base2, d), [base2].pack('N')[1,3], etc1colormod(base2, -d)]
-                    (0...16).map{|i| colors[bin[i] + bin[i + 16] * 2]}
+                    16.times do |i|
+                        BinUtils.append_string!(mem, colors[bin[i] + bin[i + 16] * 2])
+                    end
                 elsif g + dg < 0 || g + dg > 31
                     # H mode
                     base1 = (bin >> 51 & 0xfe0) | (bin >> 48 & 0x18) | (bin >> 47 & 7)
@@ -555,7 +564,9 @@ module Mikunyan
                     base2 = (base2 << 4) | base2
                     d = Etc2DistanceTable[bin[34] * 2 + bin[32]]
                     colors = [etc1colormod(base1, d), etc1colormod(base1, -d), etc1colormod(base2, d), etc1colormod(base2, -d)]
-                    (0...16).map{|i| colors[bin[i] + bin[i + 16] * 2]}
+                    16.times do |i|
+                        BinUtils.append_string!(mem, colors[bin[i] + bin[i + 16] * 2])
+                    end
                 elsif b + db < 0 || b + db > 31
                     # planar mode
                     color_or = (bin >> 55 & 0xfc) | (bin >> 61 & 0x03)
@@ -567,13 +578,13 @@ module Mikunyan
                     color_vr = (bin >> 11 & 0xfc) | (bin >> 17 & 0x03)
                     color_vg = (bin >>  5 & 0xfe) | bin[12]
                     color_vb = (bin <<  2 & 0xfc) | (bin >>  4 & 0x03)
-                    (0...16).map do |i|
+                    16.times do |i|
                         x = i / 4
                         y = i % 4
                         r = (x * (color_hr - color_or) + y * (color_vr - color_or) + 4 * color_or + 2) >> 2
                         g = (x * (color_hg - color_og) + y * (color_vg - color_og) + 4 * color_og + 2) >> 2
                         b = (x * (color_hb - color_ob) + y * (color_vb - color_ob) + 4 * color_ob + 2) >> 2
-                        r.clamp(0, 255).chr + g.clamp(0, 255).chr + b.clamp(0, 255).chr
+                        BinUtils.append_int8!(mem, r.clamp(0, 255), g.clamp(0, 255), b.clamp(0, 255))
                     end
                 else
                     # differential mode
@@ -584,22 +595,25 @@ module Mikunyan
                     colors[1] = colors[1] | (colors[1] >> 5 & 0x70707)
                     codes = [bin >> 37 & 7, bin >> 34 & 7]
                     subblocks = Etc1SubblockTable[bin[32]]
-                    (0...16).map do |i|
+                    16.times do |i|
                         modifier = Etc1ModifierTable[codes[subblocks[i]]][bin[i]]
-                        etc1colormod(colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
+                        etc1colormod_append(mem, colors[subblocks[i]], bin[i + 16] == 0 ? modifier : -modifier)
                     end
                 end
             end
+            mem
         end
 
         def self.decode_etc2alpha_block(bin)
             if bin & 0xf0000000000000 == 0
-                Array.new(16, (bin >> 56).chr)
+                ((bin >> 56).chr) * 16
             else
+                mem = String.new(capacity: 16)
                 base = bin >> 56
                 mult = bin >> 52 & 0xf
                 table = Etc2AlphaModTable[bin >> 48 & 0xf]
-                (0...16).reverse_each.map{|i| (base + table[bin >> i*3 & 7] * mult).clamp(0, 255).chr}
+                (0...16).each{|i| BinUtils.append_int8!(mem, (base + table[bin >> i*3 & 7] * mult).clamp(0, 255))}
+                mem
             end
         end
 

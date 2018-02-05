@@ -364,7 +364,7 @@ module Mikunyan
             end
 
             def applicate_color
-                mem = Fiddle::Pointer.malloc(@bw * @bh * 4)
+                @data = String.new(capacity: @bw * @bh * 4)
 
                 if @dual_plane
                     plane_arr = [0, 1, 2, 3]
@@ -373,27 +373,27 @@ module Mikunyan
                     if @partition
                         (@bw * @bh).times do |i|
                             part = @partition[i]
-                            plane_arr.each{|c| mem[i * 4 + c] = select_color(@endpoint[part][c], @endpoint[part][4 + c], @weight0[i])}
-                            mem[i * 4 + @plane_selector] = select_color(@endpoint[part][@plane_selector], @endpoint[part][4 + @plane_selector], @weight1[i])
+                            4.times do |c|
+                                BinUtils.append_int8!(@data, select_color(@endpoint[part][c], @endpoint[part][4 + c], c == @plane_selector ? @weight1[i] : @weight0[i]))
+                            end
                         end
                     else
                         (@bw * @bh).times do |i|
-                            plane_arr.each{|c| mem[i * 4 + c] = select_color(@endpoint[0][c], @endpoint[0][4 + c], @weight0[i])}
-                            mem[i * 4 + @plane_selector] = select_color(@endpoint[0][@plane_selector], @endpoint[0][4 + @plane_selector], @weight1[i])
+                            4.times do |c|
+                                BinUtils.append_int8!(@data, select_color(@endpoint[0][c], @endpoint[0][4 + c], c == @plane_selector ? @weight1[i] : @weight0[i]))
+                            end
                         end
                     end
                 elsif @partition
                     (@bw * @bh).times do |i|
                         part = @partition[i]
-                        4.times{|c| mem[i * 4 + c] = select_color(@endpoint[part][c], @endpoint[part][4 + c], @weight[i])}
+                        4.times{|c| BinUtils.append_int8!(@data, select_color(@endpoint[part][c], @endpoint[part][4 + c], @weight[i]))}
                     end
                 else
                     (@bw * @bh).times do |i|
-                        4.times{|c| mem[i * 4 + c] = select_color(@endpoint[0][c], @endpoint[0][4 + c], @weight[i])}
+                        4.times{|c| BinUtils.append_int8!(@data, select_color(@endpoint[0][c], @endpoint[0][4 + c], @weight[i]))}
                     end
                 end
-
-                @data = mem.to_str
             end
 
             def select_color(v0, v1, weight)
