@@ -1,6 +1,7 @@
 begin; require 'oily_png'; rescue LoadError; require 'chunky_png'; end
 require 'bin_utils'
 require 'mikunyan/decoders/astc_block_decoder'
+require 'mikunyan/decoders/dxtc_block_decoder'
 
 module Mikunyan
     # Class for image decoding tools
@@ -38,6 +39,8 @@ module Mikunyan
                 decode_rgb565(width, height, bin, endian)
             when 9
                 decode_r16(width, height, bin)
+            when 10
+                decode_dxt1(width, height, bin)
             when 13
                 decode_rgba4444(width, height, bin, endian)
             when 14
@@ -348,6 +351,19 @@ module Mikunyan
                 BinUtils.append_int8!(mem, f2i(r), f2i(g), f2i(b), f2i(a))
             end
             ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
+        end
+
+        def self.decode_dxt1(width, height, bin)
+            bw = (width + 3) / 4
+            bh = (height + 3) / 4
+            ret = ChunkyPNG::Image.new(bh * 4, bw * 4)
+            bh.times do |by|
+                bw.times do |bx|
+                    block = DecodeHelper::DxtcBlockDecoder::decode_dxt1_block(bin.byteslice((bx + by * bw) * 8, 8))
+                    ret.replace!(ChunkyPNG::Image.from_rgba_stream(4, 4, block), bx * 4, by * 4)
+                end
+            end
+            ret.crop(0, 0, height, width).flip
         end
 
         # Decode image from ETC1 compressed binary
