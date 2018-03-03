@@ -1,6 +1,10 @@
 # mikunyan
 
-Library to deserialize Unity AssetBundle files (\*.unity3d) and asset files.
+A library to deserialize AssetBundle files (\*.unity3d) and asset files of Unity.
+
+The name "Mikunyan" is derived from [Miku Maekawa](http://www.project-imas.com/wiki/Miku_Maekawa).
+
+Ruby-Doc: http://www.rubydoc.info/gems/mikunyan/
 
 ## Installation
 
@@ -33,67 +37,67 @@ If you want to install development build:
 ```ruby
 require 'mikunyan'
 
-# load AssetBundle
+# load an AssetBundle file
 bundle = Mikunyan::AssetBundle.file(filename)
 
-# you can load AssetBundle from blob
+# you can also load a bundle from blob
 # bundle = Mikunyan::AssetBundle.load(blob)
 
-# select asset (normaly only one asset)
+# select asset (a bundle normally contains only one asset)
 asset = bundle.assets[0]
 
-# or you can directly load asset
+# or you can directly load an asset from an asset file
 # asset = Mikunyan::Asset.file(filename)
 
-# object list
+# get a list of objects
 list = asset.objects
 
-# object PathIds
+# get PathIds of objects
 path_ids = asset.path_ids
 
-# object container table (if available)
+# get an container table of objects (if available)
 containers = asset.containers
 
-# load object (Mikunyan::ObjectValue)
+# load an object (Mikunyan::ObjectValue)
 obj = asset.parse_object(path_ids[0])
 
-# simplified structure (based on Hash)
+# load an object to Ruby data structures
 obj_hash = asset.parse_object_simple(path_ids[0])
 
-# hash can be easily serialized to json
+# a Hash can be serialized to JSON
 require 'json'
 obj_hash.to_json
 ```
 
 ### Mikunyan::ObjectValue
 
-`Mikunyan::ObjectValue` can be 3 types. Value, array and map.
+`Mikunyan::ObjectValue` can be 3 types: value, array and key-value table.
 
 ```ruby
-# You can get whether obj is value or not
+# get whether obj is value or not
 obj.value?
 
-# get value
+# get a value
 obj.value
 
 # same as obj.value
 obj[]
 
 
-# You can get whether obj is array or not
+# get whether obj is array or not
 obj.array?
 
-# get array
+# get an array
 obj.value
 
 # you can directly access by index
 obj[0]
 
 
-# If obj is map, you can get keys
+# get keys (if obj is key-value table)
 obj.keys
 
-# get child object
+# get child objects
 obj[key]
 
 # same as obj[key]
@@ -102,9 +106,9 @@ obj.key
 
 ### Unpack Texture2D
 
-You can get png file directly from Texture2D asset. Output object's class is `ChunkyPNG::Image`.
+You can get image data directly from Texture2D object. Output object's class is `ChunkyPNG::Image`.
 
-Some basic texture formats (1–5, 7, 9, 13–20, 22, 62, and 63), ETC_RGB4 (34), ETC2 (45, 47), and ASTC (48–59) are available.
+Some basic texture formats (1–5, 7, 9, 13–20, 22, 62, and 63), DXT1 (10), ETC_RGB4 (34), ETC2 (45, 47), and ASTC (48–59) are available.
 
 ```ruby
 require 'mikunyan/decoders'
@@ -112,7 +116,7 @@ require 'mikunyan/decoders'
 # get some Texture2D asset
 obj = asset.parse_object(path_ids[1])
 
-# you can get Image object
+# you can get image data
 img = Mikunyan::ImageDecoder.decode_object(obj)
 
 # save it!
@@ -123,14 +127,14 @@ Mikunyan cannot decode ASTC with HDR data. Use `Mikunyan::ImageDecoder.create_as
 
 ### Json / YAML Outputter
 
-`mikunyan-json` is an executable command for converting unity3d to json.
+`mikunyan-json` is an executable command for converting unity3d to JSON.
 
     $ mikunyan-json bundle.unity3d > bundle.json
 
 Available options:
 
-- `--as-asset` (`-a`): interpret input file as not AssetBudnle but Asset
-- `--pretty` (`-p`): prettify output json
+- `--as-asset` (`-a`): interpret input file as not AssetBundle but Asset
+- `--pretty` (`-p`): prettify output JSON
 - `--yaml` (`-y`): YAML mode
 
 ### Image Outputter
@@ -139,7 +143,7 @@ Available options:
 
     $ mikunyan-image bundle.unity3d
 
-The console log is json data of output textures as below.
+The console log is JSON data of output textures as follows.
 
 ```json
 [
@@ -158,7 +162,7 @@ The console log is json data of output textures as below.
 ]
 ```
 
-If the option `--sprite` specified, `mikunyan-image` will output sprites. The log json also contains sprite information.
+If the option `--sprite` specified, `mikunyan-image` will output sprites. The logged JSON also contains sprite information.
 
 ```json
 [
@@ -215,10 +219,10 @@ If the option `--sprite` specified, `mikunyan-image` will output sprites. The lo
 
 Available options:
 
-- `--as-asset` (`-a`): interpret input file as not AssetBudnle but Asset
-- `--outputdir` (`-o`): output directory (default is a basename of input file without an extention)
+- `--as-asset` (`-a`): interpret input file as not AssetBundle but Asset
+- `--outputdir` (`-o`): specify an output directory (default is a basename of input file without an extension)
 - `--sprite` (`-s`): output sprites instead of textures
-- `--pretty` (`-p`): prettify output json
+- `--pretty` (`-p`): prettify output JSON
 
 ## Dependencies
 
@@ -229,19 +233,9 @@ Available options:
 
 Mikunyan uses [oily_png](https://rubygems.org/gems/oily_png) instead of chunky_png if available.
 
-## FAQ
+## Implementation in other languages
 
-### Sometimes unpacking fails
-
-I'm sorry...
-
-### Can I unpack Mesh files?
-
-It's hard work for me...
-
-### What mikunyan comes from?
-
-[Miku Maekawa](http://www.project-imas.com/wiki/Miku_Maekawa).
+- TypeScript: [shibunyan](https://github.com/AnemoneStar/shibunyan)
 
 ## Contributing
 
