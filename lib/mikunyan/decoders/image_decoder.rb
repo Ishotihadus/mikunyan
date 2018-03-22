@@ -41,6 +41,8 @@ module Mikunyan
                 decode_r16(width, height, bin)
             when 10
                 decode_dxt1(width, height, bin)
+            when 12
+                decode_dxt5(width, height, bin)
             when 13
                 decode_rgba4444(width, height, bin, endian)
             when 14
@@ -353,6 +355,11 @@ module Mikunyan
             ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
         end
 
+        # Decode image from DXT1 compressed binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
         def self.decode_dxt1(width, height, bin)
             bw = (width + 3) / 4
             bh = (height + 3) / 4
@@ -360,6 +367,24 @@ module Mikunyan
             bh.times do |by|
                 bw.times do |bx|
                     block = DecodeHelper::DxtcBlockDecoder::decode_dxt1_block(bin.byteslice((bx + by * bw) * 8, 8))
+                    ret.replace!(ChunkyPNG::Image.from_rgba_stream(4, 4, block), bx * 4, by * 4)
+                end
+            end
+            ret.crop(0, 0, height, width).flip
+        end
+
+        # Decode image from DXT5 compressed binary
+        # @param [Integer] width image width
+        # @param [Integer] height image height
+        # @param [String] bin binary to decode
+        # @return [ChunkyPNG::Image] decoded image
+        def self.decode_dxt5(width, height, bin)
+            bw = (width + 3) / 4
+            bh = (height + 3) / 4
+            ret = ChunkyPNG::Image.new(bh * 4, bw * 4)
+            bh.times do |by|
+                bw.times do |bx|
+                    block = DecodeHelper::DxtcBlockDecoder::decode_dxt5_block(bin.byteslice((bx + by * bw) * 16, 16))
                     ret.replace!(ChunkyPNG::Image.from_rgba_stream(4, 4, block), bx * 4, by * 4)
                 end
             end
