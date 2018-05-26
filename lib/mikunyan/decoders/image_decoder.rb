@@ -1,7 +1,6 @@
 begin; require 'oily_png'; rescue LoadError; require 'chunky_png'; end
 require 'bin_utils'
 require 'mikunyan/decoders/native'
-require 'mikunyan/decoders/dxtc_block_decoder'
 
 module Mikunyan
     # Class for image decoding tools
@@ -353,16 +352,7 @@ module Mikunyan
         # @param [String] bin binary to decode
         # @return [ChunkyPNG::Image] decoded image
         def self.decode_dxt1(width, height, bin)
-            bw = (width + 3) / 4
-            bh = (height + 3) / 4
-            ret = ChunkyPNG::Image.new(bh * 4, bw * 4)
-            bh.times do |by|
-                bw.times do |bx|
-                    block = DecodeHelper::DxtcBlockDecoder::decode_dxt1_block(bin.byteslice((bx + by * bw) * 8, 8))
-                    ret.replace!(ChunkyPNG::Image.from_rgba_stream(4, 4, block), bx * 4, by * 4)
-                end
-            end
-            ret.crop(0, 0, height, width).flip
+            ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_dxt1(bin, width, height))
         end
 
         # Decode image from DXT5 compressed binary
@@ -371,16 +361,7 @@ module Mikunyan
         # @param [String] bin binary to decode
         # @return [ChunkyPNG::Image] decoded image
         def self.decode_dxt5(width, height, bin)
-            bw = (width + 3) / 4
-            bh = (height + 3) / 4
-            ret = ChunkyPNG::Image.new(bh * 4, bw * 4)
-            bh.times do |by|
-                bw.times do |bx|
-                    block = DecodeHelper::DxtcBlockDecoder::decode_dxt5_block(bin.byteslice((bx + by * bw) * 16, 16))
-                    ret.replace!(ChunkyPNG::Image.from_rgba_stream(4, 4, block), bx * 4, by * 4)
-                end
-            end
-            ret.crop(0, 0, height, width).flip
+            ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_dxt5(bin, width, height))
         end
 
         # Decode image from ETC1 compressed binary
