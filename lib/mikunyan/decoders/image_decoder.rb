@@ -127,15 +127,7 @@ module Mikunyan
         # @param [Symbol] endian endianness of binary
         # @return [ChunkyPNG::Image] decoded image
         def self.decode_rgb565(width, height, bin, endian = :big)
-            mem = String.new(capacity: width * height * 3)
-            (width * height).times do |i|
-                c = endian == :little ? BinUtils.get_int16_le(bin, i*2) : BinUtils.get_int16_be(bin, i*2)
-                r = (c & 0xf800) >> 8
-                g = (c & 0x07e0) >> 3
-                b = (c & 0x001f) << 3
-                BinUtils.append_int8!(mem, r | r >> 5, g | g >> 6, b | b >> 5)
-            end
-            ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
+            ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_rgb565(bin, width * height, endian == :big)).flip
         end
 
         # Decode image from A8 binary
