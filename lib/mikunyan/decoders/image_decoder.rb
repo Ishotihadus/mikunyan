@@ -1,6 +1,6 @@
 begin; require 'oily_png'; rescue LoadError; require 'chunky_png'; end
 require 'bin_utils'
-require 'mikunyan/decoders/astc_block_decoder'
+require 'mikunyan/decoders/native'
 require 'mikunyan/decoders/dxtc_block_decoder'
 
 module Mikunyan
@@ -455,16 +455,7 @@ module Mikunyan
         # @param [String] bin binary to decode
         # @return [ChunkyPNG::Image] decoded image
         def self.decode_astc(width, height, blocksize, bin)
-            bw = (width + blocksize - 1) / blocksize
-            bh = (height + blocksize - 1) / blocksize
-            ret = ChunkyPNG::Image.new(bw * blocksize, bh * blocksize)
-            bh.times do |by|
-                bw.times do |bx|
-                    block = DecodeHelper::AstcBlockDecoder.new(bin.byteslice((by * bw + bx) * 16, 16), blocksize, blocksize).data
-                    ret.replace!(ChunkyPNG::Image.from_rgba_stream(blocksize, blocksize, block), bx * blocksize, by * blocksize)
-                end
-            end
-            ret.crop(0, 0, width, height).flip
+            ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_astc(bin, width, height, blocksize, blocksize))
         end
 
         # Create ASTC file data from ObjectValue

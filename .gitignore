@@ -12,4 +12,6 @@
 # rspec failure tracking
 .rspec_status
 
+*.bundle
+
 .DS_Store
