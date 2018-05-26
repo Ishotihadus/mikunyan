@@ -1,7 +1,7 @@
-#include <assert.h>
-#include <stdint.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
+#include <ruby.h>
 #include "astc.h"
 
 static inline uint32_t color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
@@ -101,13 +101,10 @@ static const uint8_t BitReverseTable[] = {
 };
 
 static inline uint8_t bit_reverse_u8(const uint8_t c, const int bits) {
-    assert(bits <= 8);
     return BitReverseTable[c] >> (8 - bits);
 }
 
 static inline uint64_t bit_reverse_u64(const uint64_t d, const int bits) {
-    assert(bits <= 64);
-
     uint64_t ret =
         (uint64_t)BitReverseTable[d & 0xff] << 56 |
         (uint64_t)BitReverseTable[d >> 8 & 0xff] << 48 |
@@ -325,8 +322,6 @@ void decode_block_params(const uint8_t *buf, BlockData *block_data) {
                     for (int i = 0; i < 4; i++)
                         block_data->cem[i] |= getbits(buf, 120 + i * 2 - weight_bits, 2);
                     break;
-                default:
-                    assert(0);
             }
             config_bits = 25 + block_data->part_num * 3;
         }
@@ -518,7 +513,7 @@ void decode_endpoints(const uint8_t *buf, BlockData *data) {
                     set_endpoint_blue_clamp(data->endpoints[cem], v[0] + v[1], v[2] + v[3], v[4] + v[5], v[6] + v[7], v[0], v[2], v[4], v[6]);
                 break;
             default:
-                assert(0);
+                rb_raise(rb_eStandardError, "Unsupported ASTC format");
         }
     }
 }
