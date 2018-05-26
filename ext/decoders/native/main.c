@@ -5,6 +5,8 @@
 #include "rgb.h"
 
 static VALUE rb_decode_rgb565(VALUE self, VALUE rb_data, VALUE size, VALUE big) {
+    if (RSTRING_LEN(rb_data) < FIX2LONG(size) * 2)
+        rb_raise(rb_eStandardError, "Data size is not enough.");
     uint8_t *image = (uint8_t*)malloc(FIX2LONG(size) * 3);
     decode_rgb565((uint16_t*)RSTRING_PTR(rb_data), FIX2INT(size), RTEST(big), image);
     VALUE ret = rb_str_new((char*)image, FIX2LONG(size) * 3);
@@ -13,6 +15,8 @@ static VALUE rb_decode_rgb565(VALUE self, VALUE rb_data, VALUE size, VALUE big) 
 }
 
 static VALUE rb_decode_astc(VALUE self, VALUE rb_data, VALUE w, VALUE h, VALUE bw, VALUE bh) {
+    if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + FIX2LONG(bw) - 1) / FIX2LONG(bw)) * ((FIX2LONG(h) + FIX2LONG(bh) - 1) / FIX2LONG(bh)) * 16)
+        rb_raise(rb_eStandardError, "Data size is not enough.");
     const uint8_t *data = (uint8_t*)RSTRING_PTR(rb_data);
     uint32_t *image = (uint32_t*)calloc(FIX2LONG(w) * FIX2LONG(h), sizeof(uint32_t));
     decode_astc(data, FIX2INT(w), FIX2INT(h), FIX2INT(bw), FIX2INT(bh), image);
