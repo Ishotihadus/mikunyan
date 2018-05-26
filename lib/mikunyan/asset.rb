@@ -226,19 +226,25 @@ module Mikunyan
             children = type_tree[:children]
 
             if node.array?
-                data = []
-                size = parse_object_private(br, children.find{|e| e[:name] == 'size'})
+                data = nil
+                size = parse_object_private(br, children.find{|e| e[:name] == 'size'}).value
                 data_type_tree = children.find{|e| e[:name] == 'data'}
-                size.value.times do |i|
-                    data << parse_object_private(br, data_type_tree)
+                if node.type == 'TypelessData'
+                    data = br.read(size * data_type_tree[:node].size)
+                else
+                    data = size.times.map{ parse_object_private(br, data_type_tree) }
                 end
-                data = data.map{|e| e.value}.pack('C*') if node.type == 'TypelessData'
                 r = ObjectValue.new(node.name, node.type, br.endian, data)
             elsif node.size == -1
                 r = ObjectValue.new(node.name, node.type, br.endian)
                 if children.size == 1 && children[0][:name] == 'Array' && children[0][:node].type == 'Array' && children[0][:node].array?
-                    r.value = parse_object_private(br, children[0]).value
-                    r.value = r.value.map{|e| e.value}.pack('C*').force_encoding("utf-8") if node.type == 'string'
+                    if node.type == 'string'
+                        size = parse_object_private(br, children[0][:children].find{|e| e[:name] == 'size'}).value
+                        r.value = br.read(size * children[0][:children].find{|e| e[:name] == 'data'}[:node].size).force_encoding("utf-8")
+                        br.align(4) if children[0][:node].flags & 0x4000 != 0
+                    else
+                        r.value = parse_object_private(br, children[0]).value
+                    end
                 else
                     children.each do |child|
                         r[child[:name]] = parse_object_private(br, child)
