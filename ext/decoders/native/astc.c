@@ -4,84 +4,7 @@
 #include <ruby.h>
 #include "astc.h"
 
-static inline uint32_t color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-    return r | g << 8 | b << 16 | a << 24;
-}
-
-static inline int getbits(const uint8_t *buf, const int bit, const int len) {
-    return (*(int*)(buf + bit / 8) >> (bit % 8)) & ((1 << len) - 1);
-}
-
-static inline uint64_t getbits64(const uint8_t *buf, const int bit, const int len) {
-    uint64_t mask = len == 64 ? -1 : (1ull << len) - 1;
-    if (len < 1)
-        return 0;
-    else if (bit >= 64)
-        return ((uint64_t*)buf)[1] >> (bit - 64) & mask;
-    else if (bit <= 0)
-        return ((uint64_t*)buf)[0] << -bit & mask;
-    else if (bit + len <= 64)
-        return (*(uint64_t*)buf) >> bit & mask;
-    else
-        return ((*(uint64_t*)buf) >> bit | ((uint64_t*)buf)[1] << (64 - bit)) & mask;
-}
-
-static inline uint8_t clamp(const int n) {
-    return n < 0 ? 0 : n > 255 ? 255 : n;
-}
-
-static inline void bit_transfer_signed(int *a, int *b) {
-    *b = (*b >> 1) | (*a & 0x80);
-    *a = (*a >> 1) & 0x3f;
-    if (*a & 0x20)
-        *a -= 0x40;
-}
-
-static inline void set_endpoint(uint8_t endpoint[8], uint8_t r1, uint8_t g1, uint8_t b1, uint8_t a1, uint8_t r2, uint8_t g2, uint8_t b2, uint8_t a2) {
-    endpoint[0] = r1;
-    endpoint[1] = g1;
-    endpoint[2] = b1;
-    endpoint[3] = a1;
-    endpoint[4] = r2;
-    endpoint[5] = g2;
-    endpoint[6] = b2;
-    endpoint[7] = a2;
-}
-
-static inline void set_endpoint_clamp(uint8_t endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
-    endpoint[0] = clamp(r1);
-    endpoint[1] = clamp(g1);
-    endpoint[2] = clamp(b1);
-    endpoint[3] = clamp(a1);
-    endpoint[4] = clamp(r2);
-    endpoint[5] = clamp(g2);
-    endpoint[6] = clamp(b2);
-    endpoint[7] = clamp(a2);
-}
-
-static inline void set_endpoint_blue(uint8_t endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
-    endpoint[0] = (r1 + b1) >> 1;
-    endpoint[1] = (g1 + b1) >> 1;
-    endpoint[2] = b1;
-    endpoint[3] = a1;
-    endpoint[4] = (r2 + b2) >> 1;
-    endpoint[5] = (g2 + b2) >> 1;
-    endpoint[6] = b2;
-    endpoint[7] = a2;
-}
-
-static inline void set_endpoint_blue_clamp(uint8_t endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
-    endpoint[0] = clamp((r1 + b1) >> 1);
-    endpoint[1] = clamp((g1 + b1) >> 1);
-    endpoint[2] = clamp(b1);
-    endpoint[3] = clamp(a1);
-    endpoint[4] = clamp((r2 + b2) >> 1);
-    endpoint[5] = clamp((g2 + b2) >> 1);
-    endpoint[6] = clamp(b2);
-    endpoint[7] = clamp(a2);
-}
-
-static const uint8_t BitReverseTable[] = {
+static const int BitReverseTable[] = {
     0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0,
     0x08, 0x88, 0x48, 0xC8, 0x28, 0xA8, 0x68, 0xE8, 0x18, 0x98, 0x58, 0xD8, 0x38, 0xB8, 0x78, 0xF8,
     0x04, 0x84, 0x44, 0xC4, 0x24, 0xA4, 0x64, 0xE4, 0x14, 0x94, 0x54, 0xD4, 0x34, 0xB4, 0x74, 0xF4,
@@ -100,27 +23,108 @@ static const uint8_t BitReverseTable[] = {
     0x0F, 0x8F, 0x4F, 0xCF, 0x2F, 0xAF, 0x6F, 0xEF, 0x1F, 0x9F, 0x5F, 0xDF, 0x3F, 0xBF, 0x7F, 0xFF
 };
 
-static inline uint8_t bit_reverse_u8(const uint8_t c, const int bits) {
-    return BitReverseTable[c] >> (8 - bits);
-}
-
-static inline uint64_t bit_reverse_u64(const uint64_t d, const int bits) {
-    uint64_t ret =
-        (uint64_t)BitReverseTable[d & 0xff] << 56 |
-        (uint64_t)BitReverseTable[d >> 8 & 0xff] << 48 |
-        (uint64_t)BitReverseTable[d >> 16 & 0xff] << 40 |
-        (uint64_t)BitReverseTable[d >> 24 & 0xff] << 32 |
-        (uint64_t)BitReverseTable[d >> 32 & 0xff] << 24 |
-        (uint64_t)BitReverseTable[d >> 40 & 0xff] << 16 |
-        (uint64_t)BitReverseTable[d >> 48 & 0xff] << 8 | BitReverseTable[d >> 56 & 0xff];
-    return ret >> (64 - bits);
-}
-
 static int WeightPrecTableA[] = {0, 0, 0, 3, 0, 5, 3, 0, 0, 0, 5, 3, 0, 5, 3, 0};
 static int WeightPrecTableB[] = {0, 0, 1, 0, 2, 0, 1, 3, 0, 0, 1, 2, 4, 2, 3, 5};
 
 static int CemTableA[] = {0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 0, 0};
 static int CemTableB[] = {8, 6, 5, 7, 5, 4, 6, 4, 3, 5, 3, 2, 4, 2, 1, 3, 1, 2, 1};
+
+static inline uint_fast32_t color(uint_fast8_t r, uint_fast8_t g, uint_fast8_t b, uint_fast8_t a) {
+    return r | g << 8 | b << 16 | a << 24;
+}
+
+static inline uint_fast8_t bit_reverse_u8(const uint_fast8_t c, const int bits) {
+    return BitReverseTable[c] >> (8 - bits);
+}
+
+static inline uint_fast64_t bit_reverse_u64(const uint_fast64_t d, const int bits) {
+    uint_fast64_t ret =
+        (uint_fast64_t)BitReverseTable[d & 0xff] << 56 |
+        (uint_fast64_t)BitReverseTable[d >> 8 & 0xff] << 48 |
+        (uint_fast64_t)BitReverseTable[d >> 16 & 0xff] << 40 |
+        (uint_fast64_t)BitReverseTable[d >> 24 & 0xff] << 32 |
+        (uint_fast32_t)BitReverseTable[d >> 32 & 0xff] << 24 |
+        (uint_fast32_t)BitReverseTable[d >> 40 & 0xff] << 16 |
+        (uint_fast16_t)BitReverseTable[d >> 48 & 0xff] << 8 | BitReverseTable[d >> 56 & 0xff];
+    return ret >> (64 - bits);
+}
+
+static inline int getbits(const uint8_t *buf, const int bit, const int len) {
+    return (*(int*)(buf + bit / 8) >> (bit % 8)) & ((1 << len) - 1);
+}
+
+static inline uint_fast64_t getbits64(const uint8_t *buf, const int bit, const int len) {
+    uint_fast64_t mask = len == 64 ? -1 : (1ull << len) - 1;
+    if (len < 1)
+        return 0;
+    else if (bit >= 64)
+        return (*(uint_fast64_t*)(buf + 8)) >> (bit - 64) & mask;
+    else if (bit <= 0)
+        return (*(uint_fast64_t*)buf) << -bit & mask;
+    else if (bit + len <= 64)
+        return (*(uint_fast64_t*)buf) >> bit & mask;
+    else
+        return ((*(uint_fast64_t*)buf) >> bit | *(uint_fast64_t*)(buf + 8) << (64 - bit)) & mask;
+}
+
+static inline uint_fast8_t clamp(const int n) {
+    return n < 0 ? 0 : n > 255 ? 255 : n;
+}
+
+static inline void bit_transfer_signed(int *a, int *b) {
+    *b = (*b >> 1) | (*a & 0x80);
+    *a = (*a >> 1) & 0x3f;
+    if (*a & 0x20)
+        *a -= 0x40;
+}
+
+static inline void set_endpoint(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
+    endpoint[0] = r1;
+    endpoint[1] = g1;
+    endpoint[2] = b1;
+    endpoint[3] = a1;
+    endpoint[4] = r2;
+    endpoint[5] = g2;
+    endpoint[6] = b2;
+    endpoint[7] = a2;
+}
+
+static inline void set_endpoint_clamp(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
+    endpoint[0] = clamp(r1);
+    endpoint[1] = clamp(g1);
+    endpoint[2] = clamp(b1);
+    endpoint[3] = clamp(a1);
+    endpoint[4] = clamp(r2);
+    endpoint[5] = clamp(g2);
+    endpoint[6] = clamp(b2);
+    endpoint[7] = clamp(a2);
+}
+
+static inline void set_endpoint_blue(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
+    endpoint[0] = (r1 + b1) >> 1;
+    endpoint[1] = (g1 + b1) >> 1;
+    endpoint[2] = b1;
+    endpoint[3] = a1;
+    endpoint[4] = (r2 + b2) >> 1;
+    endpoint[5] = (g2 + b2) >> 1;
+    endpoint[6] = b2;
+    endpoint[7] = a2;
+}
+
+static inline void set_endpoint_blue_clamp(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
+    endpoint[0] = clamp((r1 + b1) >> 1);
+    endpoint[1] = clamp((g1 + b1) >> 1);
+    endpoint[2] = clamp(b1);
+    endpoint[3] = clamp(a1);
+    endpoint[4] = clamp((r2 + b2) >> 1);
+    endpoint[5] = clamp((g2 + b2) >> 1);
+    endpoint[6] = clamp(b2);
+    endpoint[7] = clamp(a2);
+}
+
+static inline uint_fast8_t select_color(int v0, int v1, int weight) {
+    return ((((v0 << 8 | v0) * (64 - weight) + (v1 << 8 | v1) * weight + 32) >> 6) * 255 + 32768) / 65536;
+}
 
 typedef struct {
     int bw;
@@ -135,9 +139,9 @@ typedef struct {
     int cem[4];
     int cem_range;
     int endpoint_value_num; // max: 32
-    uint8_t endpoints[4][8];
-    uint8_t weights[144][2];
-    uint8_t partition[144];
+    int endpoints[4][8];
+    int weights[144][2];
+    int partition[144];
 } BlockData;
 
 typedef struct {
@@ -176,14 +180,14 @@ void decode_intseq(const uint8_t *buf, int offset, const int a, const int b, con
         if (reverse) {
             for (int i = 0, p = offset; i < block_count; i++, p -= block_size) {
                 int now_size = (i < block_count - 1) ? block_size : last_block_size;
-                uint64_t d = bit_reverse_u64(getbits64(buf, p - now_size, now_size), now_size);
+                uint_fast64_t d = bit_reverse_u64(getbits64(buf, p - now_size, now_size), now_size);
                 int x = (d >> b & 3) | (d >> b * 2 & 0xc) | (d >> b * 3 & 0x10) | (d >> b * 4 & 0x60) | (d >> b * 5 & 0x80);
                 for (int j = 0; j < 5 && n < count; j++, n++)
                     out[n] = (IntSeqData){ d >> (mt[j] + b * j) & mask, TritsTable[j][x] };
             }
         } else {
             for (int i = 0, p = offset; i < block_count; i++, p += block_size) {
-                uint64_t d = getbits64(buf, p, (i < block_count - 1) ? block_size : last_block_size);
+                uint_fast64_t d = getbits64(buf, p, (i < block_count - 1) ? block_size : last_block_size);
                 int x = (d >> b & 3) | (d >> b * 2 & 0xc) | (d >> b * 3 & 0x10) | (d >> b * 4 & 0x60) | (d >> b * 5 & 0x80);
                 for (int j = 0; j < 5 && n < count; j++, n++)
                     out[n] = (IntSeqData){ d >> (mt[j] + b * j) & mask, TritsTable[j][x] };
@@ -199,14 +203,14 @@ void decode_intseq(const uint8_t *buf, int offset, const int a, const int b, con
         if (reverse) {
             for (int i = 0, p = offset; i < block_count; i++, p -= block_size) {
                 int now_size = (i < block_count - 1) ? block_size : last_block_size;
-                uint64_t d = bit_reverse_u64(getbits64(buf, p - now_size, now_size), now_size);
+                uint_fast64_t d = bit_reverse_u64(getbits64(buf, p - now_size, now_size), now_size);
                 int x = (d >> b & 7) | (d >> b * 2 & 0x18) | (d >> b * 3 & 0x60);
                 for (int j = 0; j < 3 && n < count; j++, n++)
                     out[n] = (IntSeqData){ d >> (mq[j] + b * j) & mask, QuintsTable[j][x] };
             }
         } else {
             for (int i = 0, p = offset; i < block_count; i++, p += block_size) {
-                uint64_t d = getbits64(buf, p, (i < block_count - 1) ? block_size : last_block_size);
+                uint_fast64_t d = getbits64(buf, p, (i < block_count - 1) ? block_size : last_block_size);
                 int x = (d >> b & 7) | (d >> b * 2 & 0x18) | (d >> b * 3 & 0x60);
                 for (int j = 0; j < 3 && n < count; j++, n++)
                     out[n] = (IntSeqData){ d >> (mq[j] + b * j) & mask, QuintsTable[j][x] };
@@ -230,16 +234,16 @@ void decode_block_params(const uint8_t *buf, BlockData *block_data) {
         block_data->weight_range |= buf[0] << 1 & 6;
         switch (buf[0] & 0xc) {
             case 0:
-                block_data->width = (*(uint16_t*)buf >> 7 & 3) + 4;
+                block_data->width = (*(int*)buf >> 7 & 3) + 4;
                 block_data->height = (buf[0] >> 5 & 3) + 2;
                 break;
             case 4:
-                block_data->width = (*(uint16_t*)buf >> 7 & 3) + 8;
+                block_data->width = (*(int*)buf >> 7 & 3) + 8;
                 block_data->height = (buf[0] >> 5 & 3) + 2;
                 break;
             case 8:
                 block_data->width = (buf[0] >> 5 & 3) + 2;
-                block_data->height = (*(uint16_t*)buf >> 7 & 3) + 8;
+                block_data->height = (*(int*)buf >> 7 & 3) + 8;
                 break;
             case 12:
                 if (buf[1] & 1) {
@@ -461,8 +465,8 @@ void decode_endpoints(const uint8_t *buf, BlockData *data) {
                 break;
             case 1:
                 {
-                    uint8_t l0 = (v[0] >> 2) | (v[1] & 0xc0);
-                    uint8_t l1 = clamp(l0 + (v[1] & 0x3f));
+                    int l0 = (v[0] >> 2) | (v[1] & 0xc0);
+                    int l1 = clamp(l0 + (v[1] & 0x3f));
                     set_endpoint(data->endpoints[cem], l0, l0, l0, 255, l1, l1, l1, 255);
                 }
                 break;
@@ -638,7 +642,7 @@ void select_partition(const uint8_t *buf, BlockData *data) {
     rnum ^= rnum << 6;
     rnum ^= rnum >> 17;
 
-    uint8_t seeds[8];
+    int seeds[8];
     for (int i = 0; i < 8; i++) {
         seeds[i] = (rnum >> (i * 4)) & 0xF;
         seeds[i] *= seeds[i];
@@ -678,10 +682,6 @@ void select_partition(const uint8_t *buf, BlockData *data) {
     }
 }
 
-static inline uint8_t select_color(int v0, int v1, int weight) {
-    return ((((v0 << 8 | v0) * (64 - weight) + (v1 << 8 | v1) * weight + 32) >> 6) * 255 + 32768) / 65536;
-}
-
 void applicate_color(const BlockData *data, uint32_t *outbuf) {
     if (data->dual_plane) {
         int ps[] = { 0, 0, 0, 0 };
@@ -689,36 +689,36 @@ void applicate_color(const BlockData *data, uint32_t *outbuf) {
         if (data->part_num > 1) {
             for (int i = 0; i < data->bw * data->bh; i++) {
                 int p = data->partition[i];
-                uint8_t r = select_color(data->endpoints[p][0], data->endpoints[p][4], data->weights[i][ps[0]]);
-                uint8_t g = select_color(data->endpoints[p][1], data->endpoints[p][5], data->weights[i][ps[1]]);
-                uint8_t b = select_color(data->endpoints[p][2], data->endpoints[p][6], data->weights[i][ps[2]]);
-                uint8_t a = select_color(data->endpoints[p][3], data->endpoints[p][7], data->weights[i][ps[3]]);
+                uint_fast8_t r = select_color(data->endpoints[p][0], data->endpoints[p][4], data->weights[i][ps[0]]);
+                uint_fast8_t g = select_color(data->endpoints[p][1], data->endpoints[p][5], data->weights[i][ps[1]]);
+                uint_fast8_t b = select_color(data->endpoints[p][2], data->endpoints[p][6], data->weights[i][ps[2]]);
+                uint_fast8_t a = select_color(data->endpoints[p][3], data->endpoints[p][7], data->weights[i][ps[3]]);
                 outbuf[i] = color(r, g, b, a);
             }
         } else {
             for (int i = 0; i < data->bw * data->bh; i++) {
-                uint8_t r = select_color(data->endpoints[0][0], data->endpoints[0][4], data->weights[i][ps[0]]);
-                uint8_t g = select_color(data->endpoints[0][1], data->endpoints[0][5], data->weights[i][ps[1]]);
-                uint8_t b = select_color(data->endpoints[0][2], data->endpoints[0][6], data->weights[i][ps[2]]);
-                uint8_t a = select_color(data->endpoints[0][3], data->endpoints[0][7], data->weights[i][ps[3]]);
+                uint_fast8_t r = select_color(data->endpoints[0][0], data->endpoints[0][4], data->weights[i][ps[0]]);
+                uint_fast8_t g = select_color(data->endpoints[0][1], data->endpoints[0][5], data->weights[i][ps[1]]);
+                uint_fast8_t b = select_color(data->endpoints[0][2], data->endpoints[0][6], data->weights[i][ps[2]]);
+                uint_fast8_t a = select_color(data->endpoints[0][3], data->endpoints[0][7], data->weights[i][ps[3]]);
                 outbuf[i] = color(r, g, b, a);
             }
         }
     } else if (data->part_num > 1) {
         for (int i = 0; i < data->bw * data->bh; i++) {
             int p = data->partition[i];
-            uint8_t r = select_color(data->endpoints[p][0], data->endpoints[p][4], data->weights[i][0]);
-            uint8_t g = select_color(data->endpoints[p][1], data->endpoints[p][5], data->weights[i][0]);
-            uint8_t b = select_color(data->endpoints[p][2], data->endpoints[p][6], data->weights[i][0]);
-            uint8_t a = select_color(data->endpoints[p][3], data->endpoints[p][7], data->weights[i][0]);
+            uint_fast8_t r = select_color(data->endpoints[p][0], data->endpoints[p][4], data->weights[i][0]);
+            uint_fast8_t g = select_color(data->endpoints[p][1], data->endpoints[p][5], data->weights[i][0]);
+            uint_fast8_t b = select_color(data->endpoints[p][2], data->endpoints[p][6], data->weights[i][0]);
+            uint_fast8_t a = select_color(data->endpoints[p][3], data->endpoints[p][7], data->weights[i][0]);
             outbuf[i] = color(r, g, b, a);
         }
     } else {
         for (int i = 0; i < data->bw * data->bh; i++) {
-            uint8_t r = select_color(data->endpoints[0][0], data->endpoints[0][4], data->weights[i][0]);
-            uint8_t g = select_color(data->endpoints[0][1], data->endpoints[0][5], data->weights[i][0]);
-            uint8_t b = select_color(data->endpoints[0][2], data->endpoints[0][6], data->weights[i][0]);
-            uint8_t a = select_color(data->endpoints[0][3], data->endpoints[0][7], data->weights[i][0]);
+            uint_fast8_t r = select_color(data->endpoints[0][0], data->endpoints[0][4], data->weights[i][0]);
+            uint_fast8_t g = select_color(data->endpoints[0][1], data->endpoints[0][5], data->weights[i][0]);
+            uint_fast8_t b = select_color(data->endpoints[0][2], data->endpoints[0][6], data->weights[i][0]);
+            uint_fast8_t a = select_color(data->endpoints[0][3], data->endpoints[0][7], data->weights[i][0]);
             outbuf[i] = color(r, g, b, a);
         }
     }
@@ -726,7 +726,7 @@ void applicate_color(const BlockData *data, uint32_t *outbuf) {
 
 void decode_block(const uint8_t *buf, const int bw, const int bh, uint32_t *outbuf) {
     if (buf[0] == 0xfc && (buf[1] & 1) == 1) {
-        uint32_t c = color(buf[9], buf[11], buf[13], buf[15]);
+        uint_fast32_t c = color(buf[9], buf[11], buf[13], buf[15]);
         for (int i = 0; i < bw * bh; i++)
             outbuf[i] = c;
     } else {
