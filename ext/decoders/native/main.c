@@ -8,9 +8,9 @@
 static VALUE rb_decode_rgb565(VALUE self, VALUE rb_data, VALUE size, VALUE big) {
     if (RSTRING_LEN(rb_data) < FIX2LONG(size) * 2)
         rb_raise(rb_eStandardError, "Data size is not enough.");
-    uint8_t *image = (uint8_t*)malloc(FIX2LONG(size) * 3);
+    uint8_t *image = (uint8_t*)malloc(FIX2LONG(size) * 4);
     decode_rgb565((uint16_t*)RSTRING_PTR(rb_data), FIX2INT(size), RTEST(big), image);
-    VALUE ret = rb_str_new((char*)image, FIX2LONG(size) * 3);
+    VALUE ret = rb_str_new((char*)image, FIX2LONG(size) * 4);
     free(image);
     return ret;
 }
