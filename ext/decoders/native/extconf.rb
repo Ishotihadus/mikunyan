@@ -1,5 +1,6 @@
 require 'mkmf'
 
+append_cppflags('-std=c11')
 append_cppflags('-O3')
 append_cppflags('-Wall')
 append_cppflags('-Wextra')

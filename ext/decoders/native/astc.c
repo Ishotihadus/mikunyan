@@ -54,7 +54,7 @@ static inline int getbits(const uint8_t *buf, const int bit, const int len) {
 }
 
 static inline uint_fast64_t getbits64(const uint8_t *buf, const int bit, const int len) {
-    uint_fast64_t mask = len == 64 ? -1 : (1ull << len) - 1;
+    uint_fast64_t mask = len == 64 ? 0xffffffffffffffff : (1ull << len) - 1;
     if (len < 1)
         return 0;
     else if (bit >= 64)
