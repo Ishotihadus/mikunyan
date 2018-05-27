@@ -6,6 +6,14 @@
 #include "astc.h"
 #include "dxtc.h"
 
+/*
+ * Decode image from RGB565 binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] size width * height
+ * @param [Boolean] big whether input data are big endian
+ * @return [String] decoded rgba binary
+ */
 static VALUE rb_decode_rgb565(VALUE self, VALUE rb_data, VALUE size, VALUE big) {
     if (RSTRING_LEN(rb_data) < FIX2LONG(size) * 2)
         rb_raise(rb_eStandardError, "Data size is not enough.");
@@ -16,6 +24,14 @@ static VALUE rb_decode_rgb565(VALUE self, VALUE rb_data, VALUE size, VALUE big) 
     return ret;
 }
 
+/*
+ * Decode image from ETC1 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] w image width
+ * @param [Integer] h image height
+ * @return [String] decoded rgba binary
+ */
 static VALUE rb_decode_etc1(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 8)
         rb_raise(rb_eStandardError, "Data size is not enough.");
@@ -26,6 +42,14 @@ static VALUE rb_decode_etc1(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     return ret;
 }
 
+/*
+ * Decode image from ETC2 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] w image width
+ * @param [Integer] h image height
+ * @return [String] decoded rgba binary
+ */
 static VALUE rb_decode_etc2(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 8)
         rb_raise(rb_eStandardError, "Data size is not enough.");
@@ -36,6 +60,14 @@ static VALUE rb_decode_etc2(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     return ret;
 }
 
+/*
+ * Decode image from ETC2 Alpha1 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] w image width
+ * @param [Integer] h image height
+ * @return [String] decoded rgba binary
+ */
 static VALUE rb_decode_etc2a1(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 9)
         rb_raise(rb_eStandardError, "Data size is not enough.");
@@ -46,6 +78,14 @@ static VALUE rb_decode_etc2a1(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     return ret;
 }
 
+/*
+ * Decode image from ETC2 Alpha8 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] w image width
+ * @param [Integer] h image height
+ * @return [String] decoded rgba binary
+ */
 static VALUE rb_decode_etc2a8(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 16)
         rb_raise(rb_eStandardError, "Data size is not enough.");
@@ -56,6 +96,16 @@ static VALUE rb_decode_etc2a8(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     return ret;
 }
 
+/*
+ * Decode image from ASTC compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] w image width
+ * @param [Integer] h image height
+ * @param [Integer] bw block width
+ * @param [Integer] bh block height
+ * @return [String] decoded rgba binary
+ */
 static VALUE rb_decode_astc(VALUE self, VALUE rb_data, VALUE w, VALUE h, VALUE bw, VALUE bh) {
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + FIX2LONG(bw) - 1) / FIX2LONG(bw)) * ((FIX2LONG(h) + FIX2LONG(bh) - 1) / FIX2LONG(bh)) * 16)
         rb_raise(rb_eStandardError, "Data size is not enough.");
@@ -67,6 +117,14 @@ static VALUE rb_decode_astc(VALUE self, VALUE rb_data, VALUE w, VALUE h, VALUE b
     return ret;
 }
 
+/*
+ * Decode image from DXT1 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] w image width
+ * @param [Integer] h image height
+ * @return [String] decoded rgba binary
+ */
 static VALUE rb_decode_dxt1(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 8)
         rb_raise(rb_eStandardError, "Data size is not enough.");
@@ -77,6 +135,14 @@ static VALUE rb_decode_dxt1(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     return ret;
 }
 
+/*
+ * Decode image from DXT5 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] w image width
+ * @param [Integer] h image height
+ * @return [String] decoded rgba binary
+ */
 static VALUE rb_decode_dxt5(VALUE self, VALUE rb_data, VALUE w, VALUE h) {
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 16)
         rb_raise(rb_eStandardError, "Data size is not enough.");
