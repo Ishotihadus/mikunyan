@@ -56,13 +56,16 @@ assets.each do |asset|
 
         asset.objects.select{|o| asset.object_type(o) == 'Sprite'}.each do |o|
             obj = asset.parse_object(o)
+            next unless obj
             name = obj.m_Name.value
             tex_id = obj.m_RD.texture.m_PathID.value
 
             unless textures[tex_id]
                 tex_obj = asset.parse_object(tex_id)
-                textures[tex_id] = Mikunyan::ImageDecoder.decode_object(tex_obj) if tex_obj
-                json[tex_id] = {:name => tex_obj.m_Name.value, :width => textures[tex_id].width, :height => textures[tex_id].height, :path_id => tex_id, :sprites => []}
+                if tex_obj
+                    textures[tex_id] = Mikunyan::ImageDecoder.decode_object(tex_obj) if tex_obj
+                    json[tex_id] = {:name => tex_obj.m_Name.value, :width => textures[tex_id].width, :height => textures[tex_id].height, :path_id => tex_id, :sprites => []}
+                end
             end
 
             if textures[tex_id]
@@ -80,6 +83,7 @@ assets.each do |asset|
         json = []
         asset.objects.select{|o| asset.object_type(o) == 'Texture2D'}.each do |o|
             obj = asset.parse_object(o)
+            next unless obj
             name = obj.m_Name.value
             image = Mikunyan::ImageDecoder.decode_object(obj)
             if image
