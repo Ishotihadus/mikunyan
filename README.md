@@ -108,7 +108,7 @@ obj.key
 
 You can get image data directly from Texture2D object. Output object's class is `ChunkyPNG::Image`.
 
-Some basic texture formats (1–5, 7, 9, 13–20, 22, 62, and 63), DXT1 (10), DXT5 (12), ETC_RGB4 (34), ETC2 (45, 47), and ASTC (48–59) are available.
+Some basic texture formats (1–5, 7, 9, 13–20, 22, 62, and 63), DXT1 (10), DXT5 (12), ETC_RGB4 (34), ETC2 (45–47), and ASTC (48–59) are available.
 
 ```ruby
 require 'mikunyan/decoders'
