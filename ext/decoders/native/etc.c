@@ -158,8 +158,8 @@ static inline void decode_etc2_block(const uint8_t *data, uint32_t *outbuf) {
             c[2][0] = data[5] << 5 & 0xe0 | data[6] >> 3 & 0x1c | data[5] >> 1 & 3;
             c[2][1] = data[6] << 3 & 0xf8 | data[7] >> 5 & 0x6 | data[6] >> 4 & 1;
             c[2][2] = data[7] << 2 | data[7] >> 4 & 3;
-            for (int x = 3, i = 0; x >= 0; x--) {
-                for (int y = 3; y >= 0; y--, i++) {
+            for (int y = 0, i = 0; y < 4; y++) {
+                for (int x = 0; x < 4; x++, i++) {
                     uint8_t r = clamp((x * (c[1][0] - c[0][0]) + y * (c[2][0] - c[0][0]) + 4 * c[0][0] + 2) >> 2);
                     uint8_t g = clamp((x * (c[1][1] - c[0][1]) + y * (c[2][1] - c[0][1]) + 4 * c[0][1] + 2) >> 2);
                     uint8_t b = clamp((x * (c[1][2] - c[0][2]) + y * (c[2][2] - c[0][2]) + 4 * c[0][2] + 2) >> 2);
