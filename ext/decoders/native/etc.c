@@ -204,7 +204,7 @@ static inline void decode_etc2_block(const uint8_t *data, uint32_t *outbuf) {
 }
 
 static inline void decode_etc2a8_block(const uint8_t *data, uint32_t *outbuf) {
-    if (data[2] & 0xf0) {
+    if (data[1] & 0xf0) {
         uint_fast8_t mult = data[1] >> 4;
         int_fast8_t *table = Etc2AlphaModTable[data[1] & 0xf];
         uint_fast64_t l =
