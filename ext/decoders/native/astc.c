@@ -29,7 +29,7 @@ static int WeightPrecTableB[] = {0, 0, 1, 0, 2, 0, 1, 3, 0, 0, 1, 2, 4, 2, 3, 5}
 static int CemTableA[] = {0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 0, 0};
 static int CemTableB[] = {8, 6, 5, 7, 5, 4, 6, 4, 3, 5, 3, 2, 4, 2, 1, 3, 1, 2, 1};
 
-static inline uint_fast32_t color(uint_fast8_t r, uint_fast8_t g, uint_fast8_t b, uint_fast8_t a) {
+static inline uint_fast32_t color(uint_fast32_t r, uint_fast32_t g, uint_fast32_t b, uint_fast32_t a) {
     return r | g << 8 | b << 16 | a << 24;
 }
 

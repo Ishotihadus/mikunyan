@@ -1,7 +1,8 @@
 #include <stdint.h>
+#include <string.h>
 #include "dxtc.h"
 
-static inline uint_fast32_t color(uint_fast8_t r, uint_fast8_t g, uint_fast8_t b, uint_fast8_t a) {
+static inline uint_fast32_t color(uint_fast32_t r, uint_fast32_t g, uint_fast32_t b, uint_fast32_t a) {
     return r | g << 8 | b << 16 | a << 24;
 }
 
