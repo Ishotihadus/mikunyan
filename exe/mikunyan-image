@@ -63,8 +63,8 @@ assets.each do |asset|
             unless textures[tex_id]
                 tex_obj = asset.parse_object(tex_id)
                 if tex_obj
-                    textures[tex_id] = Mikunyan::ImageDecoder.decode_object(tex_obj) if tex_obj
-                    json[tex_id] = {:name => tex_obj.m_Name.value, :width => textures[tex_id].width, :height => textures[tex_id].height, :path_id => tex_id, :sprites => []}
+                    textures[tex_id] = Mikunyan::ImageDecoder.decode_object(tex_obj)
+                    json[tex_id] = {:name => tex_obj.m_Name.value, :width => textures[tex_id].width, :height => textures[tex_id].height, :path_id => tex_id, :sprites => []} if textures[tex_id]
                 end
             end
 
