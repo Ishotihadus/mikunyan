@@ -22,7 +22,8 @@ module Mikunyan
             node_count = br.i32u
             buffer_size = br.i32u
             node_count.times do
-                nodes << Node.new(br.i16u, br.i8u, br.i8u != 0, br.i32, br.i32, br.i32, br.i32u, br.i32u)
+                node = Node.new(br.i16u, br.i8u, br.i8u != 0, br.i32, br.i32, br.i32, br.i32u, br.i32u)
+                nodes << node
             end
             buffer = br.read(buffer_size)
             nodes.each do |n|

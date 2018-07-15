@@ -84,11 +84,13 @@ module Mikunyan
             asset_count = head.i32u
             asset_count.times{ asset_blocks << {:offset => head.i64u, :size => head.i64u, :status => head.i32, :name => head.cstr} }
 
-            raw_data = ''
+            raw_data = String.new
             blocks.each{|b| raw_data << uncompress(br.read(b[:c]), b[:u], b[:f])}
 
             asset_blocks.each do |b|
-                asset = Asset.load(raw_data.byteslice(b[:offset], b[:size]), b[:name])
+                next if b[:name].end_with?('.resS')
+                res_s = asset_blocks.find{|e| e[:name] == "#{b[:name]}.resS"}
+                asset = Asset.load(raw_data.byteslice(b[:offset], b[:size]), b[:name], res_s && raw_data.byteslice(res_s[:offset], res_s[:size]))
                 @assets << asset
             end
         end

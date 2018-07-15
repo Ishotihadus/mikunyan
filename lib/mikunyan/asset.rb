@@ -10,7 +10,7 @@ module Mikunyan
     # @attr_reader [Array<Integer>] add_ids ?
     # @attr_reader [Array<Mikunyan::Asset::Reference>] references reference data
     class Asset
-        attr_reader :name, :format, :generator_version, :target_platform, :endian, :klasses, :objects, :add_ids, :references
+        attr_reader :name, :format, :generator_version, :target_platform, :endian, :klasses, :objects, :add_ids, :references, :res_s
 
         # Struct for representing Asset class definition
         # @attr [Integer] class_id class ID
@@ -40,9 +40,10 @@ module Mikunyan
         # Load Asset from binary string
         # @param [String] bin binary data
         # @param [String] name Asset name
+        # @param [String] res_s resS data
         # @return [Mikunyan::Asset] deserialized Asset object
-        def self.load(bin, name)
-            r = Asset.new(name)
+        def self.load(bin, name, res_s = nil)
+            r = Asset.new(name, res_s)
             r.send(:load, bin)
             r
         end
@@ -123,9 +124,10 @@ module Mikunyan
 
         private
 
-        def initialize(name)
+        def initialize(name, res_s = nil)
             @name = name
             @endian = :big
+            @res_s = res_s
         end
 
         def load(bin)
@@ -245,6 +247,9 @@ module Mikunyan
                     else
                         r.value = parse_object_private(br, children[0]).value
                     end
+                elsif node.type == 'StreamingInfo'
+                    children.each{|child| r[child[:name]] = parse_object_private(br, child)}
+                    r.value = @res_s.byteslice(r['offset'].value, r['size'].value) if r['path'].value == "archive:/#{name}/#{name}.resS"
                 else
                     children.each do |child|
                         r[child[:name]] = parse_object_private(br, child)

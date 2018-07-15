@@ -23,6 +23,11 @@ module Mikunyan
             bin = bin.value
             fmt = fmt.value
 
+            if bin.size == 0 && object['m_StreamData']
+                bin = object['m_StreamData'].value
+                return nil unless bin
+            end
+
             case fmt
             when 1
                 decode_a8(width, height, bin)
