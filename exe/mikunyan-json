@@ -74,7 +74,12 @@ if opts[:yaml]
     require 'yaml'
     puts YAML.dump(assets)
 else
-    require 'json'
+    begin
+        require 'usamin'
+        require 'usamin/overwrite'
+    rescue LoadError
+        require 'json'
+    end
     assets = assets.map{|k, v| [k, obj64(v)]}.to_h
     if opts[:pretty]
         puts JSON.pretty_generate(assets)

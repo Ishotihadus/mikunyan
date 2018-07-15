@@ -2,7 +2,12 @@
 require 'mikunyan'
 require 'mikunyan/decoders'
 require 'fileutils'
-require 'json'
+begin
+    require 'usamin'
+    require 'usamin/overwrite'
+rescue LoadError
+    require 'json'
+end
 
 opts = {:as_asset => false, :outputdir => nil, :sprite => false, :pretty => false}
 arg = nil
