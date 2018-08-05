@@ -51,6 +51,14 @@ module Mikunyan
             data
         end
 
+        # Read given size of binary string from specified position. This method does not seek.
+        # @param [Integer] size size
+        # @param [Integer] pos position
+        # @return [String] data
+        def read_abs(size, pos)
+            @data.byteslice(pos, size)
+        end
+
         # Read string until null character
         # @return [String] string
         def cstr
