@@ -1,4 +1,5 @@
 require 'extlz4'
+require 'extlzma'
 
 module Mikunyan
     # Class for representing Unity AssetBundle
@@ -37,21 +38,38 @@ module Mikunyan
 
             case @signature
             when 'UnityRaw'
-                load_unity_raw(br)
+                load_unity_raw(br, false)
             when 'UnityFS'
                 load_unity_fs(br)
+            when 'UnityWeb'
+                if @format <= 3
+                    load_unity_raw(br, true)
+                else
+                    load_unity_fs(br)
+                end
             else
-                warn("Unknown signature: #{@signature}")
+                raise("Unknown signature: #{@signature}")
             end
         end
 
-        def load_unity_raw(br)
+        def load_unity_raw(br, compressed)
             @assets = []
 
             file_size = br.i32u
             header_size = br.i32u
 
-            br.jmp(header_size)
+            if compressed
+                br.adv(4)
+                block_count = br.i32u
+                blocks = block_count.times.map{{ :c => br.i32u, :u => br.i32u }}
+                br.jmp(header_size)
+                data = String.new
+                blocks.each{|b| data << LZMA.decode(br.read(b[:c]))}
+                br = BinaryReader.new(data)
+            else
+                br.jmp(header_size)
+            end
+
             asset_count = br.i32u
             asset_count.times do
                 asset_pos = br.pos
@@ -99,8 +117,12 @@ module Mikunyan
             case flags & 0x3f
             when 0
                 block
+            # when 1
+                # LZMA
             when 2, 3
-                LZ4::raw_decode(block, max_dest_size)
+                LZ4.raw_decode(block, max_dest_size)
+            # when 4
+                # LZHMA
             else
                 warn("Unknown compression flag: #{@flags}")
                 block

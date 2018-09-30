@@ -23,6 +23,7 @@ Gem::Specification.new do |spec|
   spec.extensions    = ["ext/decoders/native/extconf.rb"]
 
   spec.add_dependency 'extlz4', '~> 0'
+  spec.add_dependency 'extlzma', '~> 0'
   spec.add_dependency 'bin_utils', '~> 0'
   spec.add_dependency 'chunky_png', '~> 1'
   spec.add_dependency 'json', '~> 2'
