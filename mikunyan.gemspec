@@ -29,6 +29,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'extlzma', '~> 0'
   spec.add_dependency 'json', '~> 2'
 
-  spec.add_development_dependency 'bundler', '~> 1'
+  spec.add_development_dependency 'bundler', '~> 2'
+  spec.add_development_dependency 'oily_png', '~> 1'
   spec.add_development_dependency 'pry', '~> 0'
 end
