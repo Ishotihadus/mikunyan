@@ -2,19 +2,36 @@
 
 require 'extlz4'
 require 'extlzma'
+require 'mikunyan/asset'
+require 'mikunyan/binary_reader'
 
 module Mikunyan
   # Class for representing Unity AssetBundle
   # @attr_reader [String] signature file signature (UnityRaw or UnityFS)
   # @attr_reader [Integer] format file format number
-  # @attr_reader [String] unity_version version string of Unity to use this AssetBundle
+  # @attr_reader [String] unity_version version string of Unity for this AssetBundle
   # @attr_reader [String] generator_version version string of generator
-  # @attr_reader [Array<Mikunyan::Asset>] assets included Assets
+  # @attr_reader [String] guid unique identifier (can be zero)
+  # @attr_reader [Array<Mikunyan::Asset>] assets contained Assets
   class AssetBundle
-    attr_reader :signature, :format, :unity_version, :generator_version, :assets
+    attr_reader :signature, :format, :unity_version, :generator_version, :guid, :assets, :blobs
 
-    # Load AssetBundle from binary string
-    # @param [String] bin binary data
+    AssetEntry = Struct.new(:name, :data, :blob?, :status, keyword_init: true)
+
+    # @param [String,Integer] index
+    # @return [Mikunyan::Asset,nil]
+    def [](index)
+      index.is_a?(String) ? @assets.find{|e| e.name == index} : @assets[index]
+    end
+
+    # Same as assets.each
+    # @return [Enumerator<Mikunyan::Asset>,Array<Mikunyan::Asset>]
+    def each_asset(&block)
+      @assets.each(&block)
+    end
+
+    # Loads AssetBundle from binary string
+    # @param [String,IO] bin binary data
     # @return [Mikunyan::AssetBundle] deserialized AssetBundle object
     def self.load(bin)
       r = AssetBundle.new
@@ -22,11 +39,13 @@ module Mikunyan
       r
     end
 
-    # Load AssetBundle from file
+    # Loads AssetBundle from file
     # @param [String] file file name
     # @return [Mikunyan::AssetBundle] deserialized AssetBundle object
     def self.file(file)
-      AssetBundle.load(File.binread(file))
+      File.open(file, 'rb') do |io|
+        AssetBundle.load(io)
+      end
     end
 
     private
@@ -34,84 +53,71 @@ module Mikunyan
     def load(bin)
       br = BinaryReader.new(bin)
       @signature = br.cstr
+      raise("Invalid signature: #{@signature}") unless @signature.start_with?('Unity')
+
       @format = br.i32
       @unity_version = br.cstr
       @generator_version = br.cstr
 
-      case @signature
-      when 'UnityRaw'
-        load_unity_raw(br, false)
-      when 'UnityFS'
-        load_unity_fs(br)
-      when 'UnityWeb'
-        if @format <= 3
-          load_unity_raw(br, true)
-        else
-          load_unity_fs(br)
-        end
-      else
-        raise("Unknown signature: #{@signature}")
-      end
+      @format < 6 ? load_unity_raw(br) : load_unity_fs(br)
     end
 
-    def load_unity_raw(br, compressed)
+    # @param [Mikunyan::BinaryReader] br
+    def load_unity_raw(br)
       @assets = []
 
-      file_size = br.i32u
+      _file_size = br.i32u
       header_size = br.i32u
-
-      if compressed
-        br.adv(4)
-        block_count = br.i32u
-        blocks = block_count.times.map{{ c: br.i32u, u: br.i32u }}
-        br.jmp(header_size)
-        data = ''
-        blocks.each{|b| data << LZMA.decode(br.read(b[:c]))}
-        br = BinaryReader.new(data)
-      else
-        br.jmp(header_size)
-      end
+      br.pos = header_size
+      # この部分全然わからん（ファイルの最後まで読まないとダメらしい?）
+      block = br.read(nil)
+      data = @signature == 'UnityRaw' ? block : uncompress_lzma(block, true)
+      br = BinaryReader.new(data)
 
       asset_count = br.i32u
-      asset_count.times do
-        asset_pos = br.pos
-        asset_name = br.cstr
-        asset_header_size = br.i32u
-        asset_size = br.i32u
-        br.jmp(asset_pos + asset_header_size - 4)
-        asset_data = br.read(asset_size)
-        asset = Asset.load(asset_data, asset_name)
-        @assets << asset
+      asset_entries = Array.new(asset_count) do
+        name = br.cstr
+        offset = br.i32u
+        size = br.i32u
+        is_asset = ['', '.assets'].include?(split_name(name)[1]) && size > 16
+        AssetEntry.new(name: name, data: br.read_abs(size, offset), blob?: !is_asset)
       end
+      process_asset_entries(asset_entries)
     end
 
+    # @param [Mikunyan::BinaryReader] br
     def load_unity_fs(br)
-      @assets = []
-
       file_size = br.i64u
       ci_block_size = br.i32u
       ui_block_size = br.i32u
       flags = br.i32u
 
       head = BinaryReader.new(uncompress(flags & 0x80 == 0 ? br.read(ci_block_size) : br.read_abs(ci_block_size, file_size - ci_block_size), ui_block_size, flags))
-      guid = head.read(16)
+      @guid = head.read(16)
 
-      blocks = []
       block_count = head.i32u
-      block_count.times{blocks << { u: head.i32u, c: head.i32u, f: head.i16u }}
+      raw_data = Array.new(block_count) do
+        u_size = head.i32u
+        c_size = head.i32u
+        flags = head.i16u
+        uncompress(br.read(c_size), u_size, flags)
+      end.join
 
-      asset_blocks = []
       asset_count = head.i32u
-      asset_count.times{asset_blocks << { offset: head.i64u, size: head.i64u, status: head.i32, name: head.cstr }}
+      asset_entries = Array.new(asset_count) do
+        offset = head.i64u
+        size = head.i64u
+        status = head.i32
+        AssetEntry.new(name: head.cstr, data: raw_data.byteslice(offset, size), blob?: status != 4, status: status)
+      end
+      process_asset_entries(asset_entries)
+    end
 
-      raw_data = ''
-      blocks.each{|b| raw_data << uncompress(br.read(b[:c]), b[:u], b[:f])}
-
-      asset_blocks.each do |b|
-        next if b[:name].end_with?('.resS')
-        res_s = asset_blocks.find{|e| e[:name] == "#{b[:name]}.resS"}
-        asset = Asset.load(raw_data.byteslice(b[:offset], b[:size]), b[:name], res_s && raw_data.byteslice(res_s[:offset], res_s[:size]))
-        @assets << asset
+    def process_asset_entries(asset_entries)
+      @blobs = asset_entries.select(&:blob?).map{|e| [e.name, e.data]}.to_h
+      @assets = asset_entries.reject(&:blob?).map do |e|
+        basename = split_name(e.name)[0]
+        Asset.load(e.data, e.name, @blobs["#{basename}.resource"], @blobs["#{basename}.resS"])
       end
     end
 
@@ -119,16 +125,33 @@ module Mikunyan
       case flags & 0x3f
       when 0
         block
-      # when 1
-      # LZMA
+      when 1
+        uncompress_lzma(block)
       when 2, 3
-        LZ4.raw_decode(block, max_dest_size)
+        LZ4.block_decode(block, max_dest_size)
       # when 4
       # LZHMA
       else
-        warn("Unknown compression flag: #{@flags}")
+        warn("Unknown compression flag: #{flags}")
         block
       end
+    end
+
+    def uncompress_lzma(block, with_max_len = false)
+      prop = block.ord
+      filter = LZMA.lzma1(dictsize: block.unpack1('@1V'), lc: prop % 9, lp: (prop / 9) % 5, pb: prop / 45)
+      max_len = block.unpack1('@5V') | block.unpack1('@9V') << 32 if with_max_len
+      StringIO.open(block) do |io|
+        io.seek(with_max_len ? 13 : 5)
+        LZMA.raw_decode(io, filter) do |lzma|
+          lzma.read(max_len)
+        end
+      end
+    end
+
+    def split_name(str)
+      m = str.match(/\A(.*?)(\.[^.]*)?\z/)
+      [m[1], m[2] || '']
     end
   end
 end

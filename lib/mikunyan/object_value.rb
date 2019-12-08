@@ -4,11 +4,12 @@ module Mikunyan
   # Class for representing decoded object
   # @attr [String] name object name
   # @attr [String] type object type name
+  # @attr [Hash<String,Mikunyan::ObjectValue>] attr
   # @attr [Object] value object
   # @attr [Symbol] endian endianness
   # @attr [Boolean] is_struct
   class ObjectValue
-    attr_accessor :name, :type, :value, :endian, :is_struct
+    attr_accessor :name, :type, :attr, :value, :endian, :is_struct
 
     # Constructor
     # @param [String] name object name
@@ -27,13 +28,13 @@ module Mikunyan
     # Return whether object is array or not
     # @return [Boolean]
     def array?
-      value && value.class == Array
+      value&.is_a?(Array)
     end
 
     # Return whether object is value or not
     # @return [Boolean]
     def value?
-      value && value.class != Array
+      value && !value.is_a?(Array)
     end
 
     # Return whether object is struct or not
@@ -55,20 +56,16 @@ module Mikunyan
       @attr.key?(key)
     end
 
-    # Return value
-    # @return [Object] value
-    def []
-      @value
-    end
-
     # Return value of selected index or key
-    # @param [Integer,String] i index or key
+    # @param [Integer,String] key index or key
     # @return [Object] value
-    def [](i)
-      if array? && i.class == Integer
-        @value[i]
+    def [](key = nil)
+      if key.nil?
+        @value
+      elsif array? && key.is_a?(Integer)
+        @value[key]
       else
-        @attr[i]
+        @attr[key]
       end
     end
 
@@ -83,13 +80,31 @@ module Mikunyan
     # Return value of called key
     # @param [String] name key
     # @return [Object] value
-    def method_missing(name, *_args)
-      @attr[name.to_s]
+    def method_missing(name, *args)
+      n = name.to_s
+      @attr.key?(n) ? @attr[n] : super
     end
 
     # Implementation of respond_to_missing?
     def respond_to_missing?(symbol, _include_private)
       @attr.key?(symbol.to_s)
+    end
+
+    # Simplifies self, or serializes self with ruby primitive types
+    def simplify
+      if @type == 'pair'
+        [@attr['first'].simplify, @attr['second'].simplify]
+      elsif @type == 'map' && @value.is_a?(Array)
+        @value.map{|e| [e['first'].simplify, e['second'].simplify]}.to_h
+      elsif is_struct
+        @attr.map{|key, val| [key, val.simplify]}.to_h
+      elsif @value.is_a?(Array)
+        @value.map{|e| e.is_a?(ObjectValue) ? e.simplify : e}
+      elsif @value.is_a?(ObjectValue)
+        @value.simplify
+      else
+        @value
+      end
     end
   end
 end

@@ -1,89 +1,70 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 require 'mikunyan'
 require 'base64'
 
 def obj64(obj)
-    if obj.class == Hash
-        obj.map{|k, v| [k, obj64(v)]}.to_h
-    elsif obj.class == Array
-        obj.map{|e| obj64(e)}
-    elsif obj.class == String
-        if obj.encoding == Encoding::UTF_8
-            obj
-        else
-            Base64::strict_encode64(obj)
-        end
+  if obj.is_a?(Hash)
+    obj.map{|k, v| [k, obj64(v)]}.to_h
+  elsif obj.is_a?(Array)
+    obj.map{|e| obj64(e)}
+  elsif obj.is_a?(String)
+    if obj.encoding == Encoding::UTF_8
+      obj
     else
-        obj
+      Base64.strict_encode64(obj)
     end
+  else
+    obj
+  end
 end
 
-opts = {:as_asset => false, :pretty => false, :yaml => false}
+opts = { as_asset: false, pretty: false, yaml: false }
 arg = nil
 i = 0
 while i < ARGV.count
-    if ARGV[i].start_with?('-')
-        case ARGV[i]
-        when '--as-asset', '-a'
-            opts[:as_asset] = true
-        when '--pretty', '-p'
-            opts[:pretty] = true
-        when '--yaml', '-y'
-            opts[:yaml] = true
-        else
-            warn("Unknown option: #{ARGV[i]}")
-        end
+  if ARGV[i].start_with?('-')
+    case ARGV[i]
+    when '--as-asset', '-a'
+      opts[:as_asset] = true
+    when '--pretty', '-p'
+      opts[:pretty] = true
+    when '--yaml', '-y'
+      opts[:yaml] = true
     else
-        arg = ARGV[i] unless arg
+      warn("Unknown option: #{ARGV[i]}")
     end
-    i += 1
+  else
+    arg ||= ARGV[i]
+  end
+  i += 1
 end
 
-if opts[:pretty] && opts[:yaml]
-    warn("Option --pretty is ignored if --yaml is specified.")
-end
+warn('Option --pretty is ignored if --yaml is specified.') if opts[:pretty] && opts[:yaml]
 
 unless File.file?(arg)
-    warn("File not found: #{arg}")
-    exit(1)
+  warn("File not found: #{arg}")
+  exit(1)
 end
 
-assets = {}
-
-if opts[:as_asset]
-    asset = Mikunyan::Asset.file(arg, arg.match(/([^\/]*?)(\.[^.]*)?\z/)[1])
-    objs = []
-    asset.path_ids.each do |e|
-        obj = asset.parse_object_simple(e)
-        objs << obj
-    end
-    assets[asset.name] = objs
-else
-    bundle = Mikunyan::AssetBundle.file(arg)
-    bundle.assets.each do |asset|
-        objs = []
-        asset.path_ids.each do |e|
-            obj = asset.parse_object_simple(e)
-            objs << obj
-        end
-        assets[asset.name] = objs
-    end
-end
+assets = opts[:as_asset] ? [Mikunyan::Asset.file(arg)] : Mikunyan::AssetBundle.file(arg).assets
+assets = assets.map{|asset| [asset.name, asset.each_object.map(&:parse_simple)]}.to_h
 
 if opts[:yaml]
-    require 'yaml'
-    puts YAML.dump(assets)
+  require 'yaml'
+  puts YAML.dump(assets)
 else
-    begin
-        require 'usamin'
-        require 'usamin/overwrite'
-    rescue LoadError
-        require 'json'
-    end
-    assets = assets.map{|k, v| [k, obj64(v)]}.to_h
-    if opts[:pretty]
-        puts JSON.pretty_generate(assets)
-    else
-        puts JSON.generate(assets)
-    end
+  begin
+    require 'usamin'
+    require 'usamin/overwrite'
+  rescue LoadError
+    require 'json'
+  end
+  assets = assets.map{|k, v| [k, obj64(v)]}.to_h
+  if opts[:pretty]
+    puts JSON.pretty_generate(assets)
+  else
+    puts JSON.generate(assets)
+  end
 end

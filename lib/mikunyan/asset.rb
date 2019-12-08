@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+require 'mikunyan/type_tree'
+require 'mikunyan/constants'
+require 'mikunyan/object_value'
+require 'mikunyan/base_object'
+
 module Mikunyan
   # Class for representing Unity Asset
   # @attr_reader [String] name Asset name
@@ -8,18 +13,19 @@ module Mikunyan
   # @attr_reader [Integer] target_platform target platform number
   # @attr_reader [Symbol] endian data endianness (:little or :big)
   # @attr_reader [Array<Mikunyan::Asset::Klass>] klasses defined classes
-  # @attr_reader [Array<Mikunyan::Asset::ObjectData>] objects included objects
-  # @attr_reader [Array<Integer>] add_ids ?
+  # @attr_reader [Array<Mikunyan::Asset::ObjectEntry>] objects contained objects
+  # @attr_reader [Array<Mikunyan::Asset::LocalObjectEntry>] add_ids ?
   # @attr_reader [Array<Mikunyan::Asset::Reference>] references reference data
   class Asset
-    attr_reader :name, :format, :generator_version, :target_platform, :endian, :klasses, :objects, :add_ids, :references, :res_s
+    attr_reader :name, :format, :generator_version, :target_platform, :endian, :klasses, :objects, :add_ids, :references
 
     # Struct for representing Asset class definition
     # @attr [Integer] class_id class ID
+    # @attr [Boolean] stripped?
     # @attr [Integer,nil] script_id script ID
     # @attr [String] hash hash value (16 or 32 bytes)
     # @attr [Mikunyan::TypeTree, nil] type_tree given TypeTree
-    Klass = Struct.new(:class_id, :script_id, :hash, :type_tree)
+    Klass = Struct.new(:class_id, :stripped?, :script_id, :hash, :type_tree)
 
     # Struct for representing Asset object information
     # @attr [Integer] path_id path ID
@@ -30,7 +36,29 @@ module Mikunyan
     # @attr [Integer,nil] class_idx class definition index
     # @attr [Boolean] destroyed? destroyed or not
     # @attr [String] data binary data of object
-    ObjectData = Struct.new(:path_id, :offset, :size, :type_id, :class_id, :class_idx, :destroyed?, :data)
+    # @attr [Mikunyan::Asset] parent_asset
+    # @attr [Klass] klass
+    ObjectEntry = Struct.new(
+      :path_id, :offset, :size, :type_id, :class_id, :class_idx, :destroyed?, :stripped?,
+      :data, :parent_asset, :klass,
+      keyword_init: true
+    ) do
+      def parse
+        parent_asset.parse_object(self)
+      end
+
+      def parse_simple
+        parent_asset.parse_object_simple(self)
+      end
+
+      # Returns object type name string
+      # @return [String,nil] type name
+      def type
+        klass&.type_tree&.tree&.type || Mikunyan::Constants::CLASS_ID2NAME[class_id]
+      end
+    end
+
+    LocalObjectEntry = Struct.new(:file_id, :local_id)
 
     # Struct for representing Asset reference information
     # @attr [String] path path
@@ -39,13 +67,20 @@ module Mikunyan
     # @attr [String] file_path Asset name
     Reference = Struct.new(:path, :guid, :type, :file_path)
 
+    # Strcut for container information
+    # @attr [String] name
+    # @attr [Integer] preload_index
+    # @attr [Integer] path_id
+    ContainerInfo = Struct.new(:name, :preload_index, :preload_size, :file_id, :path_id)
+
     # Load Asset from binary string
-    # @param [String] bin binary data
+    # @param [String,IO] bin binary data
     # @param [String] name Asset name
+    # @param [String] resource resource data
     # @param [String] res_s resS data
     # @return [Mikunyan::Asset] deserialized Asset object
-    def self.load(bin, name, res_s = nil)
-      r = Asset.new(name, res_s)
+    def self.load(bin, name, resource = nil, res_s = nil)
+      r = Asset.new(name, resource, res_s)
       r.send(:load, bin)
       r
     end
@@ -56,7 +91,15 @@ module Mikunyan
     # @return [Mikunyan::Asset] deserialized Asset object
     def self.file(file, name = nil)
       name ||= File.basename(name, '.*')
-      Asset.load(File.binread(file), name)
+      File.open(file, 'rb') do |io|
+        Asset.load(io, name)
+      end
+    end
+
+    # Same as objects.each
+    # @return [Enumerator<Mikunyan::Asset::ObjectEntry>,Array<Mikunyan::Asset::ObjectEntry>]
+    def each_object(&block)
+      @objects.each(&block)
     end
 
     # Returns list of all path IDs
@@ -68,273 +111,199 @@ module Mikunyan
     # Returns list of containers
     # @return [Array<Hash>,nil] list of all containers
     def containers
-      obj = parse_object(1)
-      return nil unless obj&.m_Container && obj.m_Container.array?
-      obj.m_Container.value.map do |e|
-        { name: e.first.value, preload_index: e.second.preloadIndex.value, path_id: e.second.asset.m_PathID.value }
+      obj = @path_id_table[1]
+      return nil unless obj.klass&.type_tree&.tree&.type == 'AssetBundle'
+      parse_object(obj).m_Container.value.map do |e|
+        ContainerInfo.new(e.first.value, e.second.preloadIndex.value, e.second.preloadSize.value, e.second.asset.m_FileID.value, e.second.asset.m_PathID.value)
       end
     end
 
     # Parse object of given path ID
-    # @param [Integer,ObjectData] path_id path ID or object
-    # @return [Mikunyan::ObjectValue,nil] parsed object
-    def parse_object(path_id)
-      if path_id.class == Integer
-        obj = @objects.find{|e| e.path_id == path_id}
-        return nil unless obj
-      elsif path_id.class == ObjectData
-        obj = path_id
-      else
-        return nil
-      end
-
-      klass = (obj.class_idx ? @klasses[obj.class_idx] : @klasses.find{|e| e.class_id == obj.class_id} || @klasses.find{|e| e.class_id == obj.type_id})
-      type_tree = Asset.parse_type_tree(klass)
-      return nil unless type_tree
-
-      parse_object_private(BinaryReader.new(obj.data, @endian), type_tree)
+    # @param [Integer,ObjectEntry] obj path ID or object
+    # @return [Mikunyan::BaseObject,nil] parsed object
+    def parse_object(obj)
+      obj = @path_id_table[obj] if obj.class == Integer
+      return nil unless obj.klass&.type_tree
+      value_klass = Mikunyan::CustomTypes.get_custom_type(obj.klass.type_tree.tree.type, obj.class_id)
+      ret = parse_object_private(BinaryReader.new(obj.data, @endian), obj.klass.type_tree.tree, value_klass)
+      ret.object_entry = obj
+      ret
     end
 
     # Parse object of given path ID and simplify it
-    # @param [Integer,ObjectData] path_id path ID or object
+    # @param [Integer,ObjectEntry] obj path ID or object
     # @return [Hash,nil] parsed object
-    def parse_object_simple(path_id)
-      Asset.object_simplify(parse_object(path_id))
+    def parse_object_simple(obj)
+      parse_object(obj)&.simplify
     end
 
     # Returns object type name string
-    # @param [Integer,ObjectData] path_id path ID or object
+    # @param [Integer,ObjectEntry] obj path ID or object
     # @return [String,nil] type name
-    def object_type(path_id)
-      if path_id.class == Integer
-        obj = @objects.find{|e| e.path_id == path_id}
-        return nil unless obj
-      elsif path_id.class == ObjectData
-        obj = path_id
-      else
-        return nil
-      end
-      klass = (obj.class_idx ? @klasses[obj.class_idx] : @klasses.find{|e| e.class_id == obj.class_id} || @klasses.find{|e| e.class_id == obj.type_id})
-      if klass&.type_tree && klass.type_tree.nodes[0]
-        klass.type_tree.nodes[0].type
-      elsif klass
-        Mikunyan::CLASS_ID[klass.class_id]
-      end
+    def object_type(obj)
+      obj = @path_id_table[obj] if obj.class == Integer
+      obj&.type
+    end
+
+    def self.object_simplify(obj)
+      obj.is_a?(ObjectValue) ? obj.simplify : obj
     end
 
     private
 
-    def initialize(name, res_s = nil)
+    def initialize(name, resource = nil, res_s = nil)
       @name = name
       @endian = :big
+      @resource = resource
       @res_s = res_s
     end
 
     def load(bin)
       br = BinaryReader.new(bin)
-      metadata_size = br.i32u
-      size = br.i32u
+
+      meta_size = br.i32u
+      file_size = br.i32u
       @format = br.i32u
       data_offset = br.i32u
 
       if @format >= 9
-        @endian = :little if br.i32 == 0
-        br.endian = @endian
-      end
-
-      @generator_version = br.cstr
-      @target_platform = br.i32
-      @klasses = []
-
-      if @format >= 17
-        has_type_trees = (br.i8 != 0)
-        type_tree_count = br.i32u
-        type_tree_count.times do
-          class_id = br.i32
-          br.adv(1)
-          script_id = br.i16
-          hash = if class_id < 0 || class_id == 114
-                   br.read(32)
-                 else
-                   br.read(16)
-                 end
-          @klasses << Klass.new(class_id, script_id, hash, has_type_trees ? TypeTree.load(br) : TypeTree.load_default(hash))
-        end
-      elsif @format >= 13
-        has_type_trees = (br.i8 != 0)
-        type_tree_count = br.i32u
-        type_tree_count.times do
-          class_id = br.i32
-          hash = if class_id < 0
-                   br.read(32)
-                 else
-                   br.read(16)
-                 end
-          @klasses << Klass.new(class_id, nil, hash, has_type_trees ? TypeTree.load(br) : TypeTree.load_default(hash))
-        end
+        @endian = br.bool ? :big : :little
+        br.adv(3)
       else
-        @type_trees = {}
-        type_tree_count = br.i32u
-        type_tree_count.times do
-          class_id = br.i32
-          @klasses << Klass.new(class_id, nil, nil, @format == 10 || @format == 12 ? TypeTree.load(br) : TypeTree.load_legacy(br))
+        br.pos = file_size - meta_size
+        @endian = br.bool ? :big : :little
+      end
+      br.endian = @endian
+
+      @generator_version = br.cstr if @format >= 7
+      @target_platform = br.i32 if @format >= 8
+      has_type_trees = @format >= 13 ? br.bool : true
+      type_count = br.i32u
+
+      @klasses = Array.new(type_count) do
+        class_id = br.i32s
+        stripped = br.bool if @format >= 16
+        script_id = br.i16 if @format >= 17
+        hash = br.read(@format < 16 && class_id < 0 || @format >= 16 && class_id == 114 ? 32 : 16) if @format >= 13
+        type_tree = has_type_trees ? TypeTree.load(br, @format) : TypeTree.load_default(class_id, hash)
+        Klass.new(class_id, stripped, script_id, hash, type_tree)
+      end
+
+      wide_path_id = @format >= 14 || @format >= 7 && br.i32 != 0
+
+      object_count = br.i32u
+      @objects = Array.new(object_count) do
+        br.align(4) if @format >= 14
+        if @format >= 16
+          ObjectEntry.new(
+            path_id: wide_path_id ? br.i64s : br.i32s, offset: br.i32u, size: br.i32u,
+            class_idx: br.i32u, stripped?: @format == 16 ? br.bool : nil,
+            parent_asset: self
+          )
+        else
+          ObjectEntry.new(
+            path_id: wide_path_id ? br.i64s : br.i32s, offset: br.i32u, size: br.i32u,
+            type_id: br.i32, class_id: br.i16, destroyed?: br.i16 == 1, stripped?: @format == 15 ? br.bool : nil,
+            parent_asset: self
+          )
         end
       end
 
-      long_object_ids = (@format >= 14 || (7 <= @format && @format <= 13 && br.i32 != 0))
-
-      @objects = []
-      object_count = br.i32u
-      object_count.times do
-        br.align(4) if @format >= 14
-        path_id = long_object_ids ? br.i64 : br.i32
-        offset = br.i32u
-        size = br.i32u
-        @objects << if @format >= 17
-                      ObjectData.new(path_id, offset, size, nil, nil, br.i32u, @format <= 10 && br.i16 != 0)
-                    else
-                      ObjectData.new(path_id, offset, size, br.i32, br.i16, nil, @format <= 10 && br.i16 != 0)
-                    end
-        br.adv(2) if 11 <= @format && @format <= 16
-        br.adv(1) if 15 <= @format && @format <= 16
-      end
+      @path_id_table = @objects.map{|e| [e.path_id, e]}.to_h
 
       if @format >= 11
-        @add_ids = []
         add_id_count = br.i32u
-        add_id_count.times do
+        @add_ids = Array.new(add_id_count) do
           br.align(4) if @format >= 14
-          @add_ids << [(long_object_ids ? br.i64 : br.i32), br.i32]
+          LocalObjectEntry.new(br.i32u, wide_path_id ? br.i64s : br.i32s)
         end
       end
 
-      if @format >= 6
-        @references = []
-        reference_count = br.i32u
-        reference_count.times do
-          @references << Reference.new(br.cstr, br.read(16), br.i32, br.cstr)
-        end
+      reference_count = br.i32u
+      @references = Array.new(reference_count) do
+        Reference.new(@format >= 6 ? br.cstr : nil, @format >= 5 ? br.read(16) : nil, @format >= 5 ? br.i32s : nil, br.cstr)
       end
+
+      @comment = br.cstr if @format >= 5
 
       @objects.each do |e|
         br.jmp(data_offset + e.offset)
         e.data = br.read(e.size)
+        e.klass = e.class_idx ? @klasses[e.class_idx] : @klasses.find{|e2| e2.class_id == e.class_id} || @klasses.find{|e2| e2.class_id == e.type_id}
       end
     end
 
-    def parse_object_private(br, type_tree)
-      r = nil
-      node = type_tree[:node]
-      children = type_tree[:children]
+    # @param [Mikunyan::BinaryReader] br
+    # @param [Mikunyan::TypeTree::Node] node
+    def parse_object_private(br, node, klass = ObjectValue)
+      ret = klass.new(node.name, node.type, br.endian)
+      children = node.children
 
-      if node.array?
-        data = nil
-        size = parse_object_private(br, children.find{|e| e[:name] == 'size'}).value
-        data_type_tree = children.find{|e| e[:name] == 'data'}
-        data = if node.type == 'TypelessData'
-                 br.read(size * data_type_tree[:node].size)
-               else
-                 size.times.map{parse_object_private(br, data_type_tree)}
-               end
-        r = ObjectValue.new(node.name, node.type, br.endian, data)
-      elsif node.size == -1
-        r = ObjectValue.new(node.name, node.type, br.endian)
-        if children.size == 1 && children[0][:name] == 'Array' && children[0][:node].type == 'Array' && children[0][:node].array?
-          if node.type == 'string'
-            size = parse_object_private(br, children[0][:children].find{|e| e[:name] == 'size'}).value
-            r.value = br.read(size * children[0][:children].find{|e| e[:name] == 'data'}[:node].size).force_encoding('utf-8')
-            br.align(4) if children[0][:node].flags & 0x4000 != 0
+      if children.empty?
+        pos = br.pos
+        ret.value =
+          case node.type
+          when 'bool'
+            br.bool
+          when 'SInt8'
+            br.i8s
+          when 'UInt8'
+            br.i8u
+          when 'SInt16', 'short'
+            br.i16s
+          when 'UInt16', 'unsigned short'
+            br.i16u
+          when 'SInt32', 'int'
+            br.i32s
+          when 'UInt32', 'unsigned int', 'Type*'
+            br.i32u
+          when 'SInt64', 'long long'
+            br.i64s
+          when 'UInt64', 'unsigned long long'
+            br.i64u
+          when 'float'
+            br.float
+          when 'double'
+            br.double
           else
-            r.value = parse_object_private(br, children[0]).value
+            br.read(node.size)
           end
-        elsif node.type == 'StreamingInfo'
-          children.each{|child| r[child[:name]] = parse_object_private(br, child)}
-          r.value = @res_s.byteslice(r['offset'].value, r['size'].value) if r['path'].value == "archive:/#{name}/#{name}.resS"
-        else
-          children.each do |child|
-            r[child[:name]] = parse_object_private(br, child)
-          end
-        end
-      elsif !children.empty?
-        pos = br.pos
-        r = ObjectValue.new(node.name, node.type, br.endian)
-        r.is_struct = true
+        br.jmp(pos + node.size) if node.size >= 0
+      elsif node.array?
         children.each do |child|
-          r[child[:name]] = parse_object_private(br, child)
+          next ret[child.name] = parse_object_private(br, child) unless child.name == 'data'
+          size = ret['size']&.value || raise('`size` node must appear before `data` node in array node')
+          ret.value =
+            if child.children.empty? && (!child.need_align? || br.pos % 4 == 0 && child.size % 4 == 0)
+              if node.type == 'TypelessData'
+                br.read(size * child.size)
+              elsif child.type == 'char'
+                # string
+                br.read(size * child.size).force_encoding('utf-8')
+              end
+            end
+          ret.value ||= Array.new(size){parse_object_private(br, child)}
+          ret['data'] = ret.value
         end
+      elsif children.size == 1 && children[0].array? && children[0].type == 'Array' && children[0].name == 'Array'
+        ret = parse_object_private(br, children[0])
+        ret.name = node.name
+        ret.type = node.type
       else
-        pos = br.pos
-        value = nil
-        case node.type
-        when 'bool'
-          value = (br.i8 != 0)
-        when 'SInt8'
-          value = br.i8s
-        when 'UInt8', 'char'
-          value = br.i8u
-        when 'SInt16', 'short'
-          value = br.i16s
-        when 'UInt16', 'unsigned short'
-          value = br.i16u
-        when 'SInt32', 'int'
-          value = br.i32s
-        when 'UInt32', 'unsigned int'
-          value = br.i32u
-        when 'SInt64', 'long long'
-          value = br.i64s
-        when 'UInt64', 'unsigned long long'
-          value = br.i64u
-        when 'float'
-          value = br.float
-        when 'double'
-          value = br.double
-        when 'ColorRGBA'
-          value = [br.i8u, br.i8u, br.i8u, br.i8u]
+        ret.attr = children.map{|c| [c.name, parse_object_private(br, c)]}.to_h
+        if node.type == 'StreamingInfo'
+          ret.value =
+            if ret['path'].value == "archive:/#{name}/#{name}.resource"
+              @resource&.byteslice(ret['offset'].value, ret['size'].value)
+            elsif ret['path'].value == "archive:/#{name}/#{name}.resS"
+              @res_s&.byteslice(ret['offset'].value, ret['size'].value)
+            end
         else
-          value = br.read(node.size)
+          ret.is_struct = true
         end
-        br.jmp(pos + node.size)
-        r = ObjectValue.new(node.name, node.type, br.endian, value)
       end
-      br.align(4) if node.flags & 0x4000 != 0
-      r
-    end
-
-    def self.object_simplify(obj)
-      if obj.class != ObjectValue
-        obj
-      elsif obj.type == 'pair'
-        [object_simplify(obj['first']), object_simplify(obj['second'])]
-      elsif obj.type == 'map' && obj.array?
-        obj.value.map{|e| [object_simplify(e['first']), object_simplify(e['second'])]}.to_h
-      elsif obj.value?
-        object_simplify(obj.value)
-      elsif obj.array?
-        obj.value.map{|e| object_simplify(e)}
-      else
-        hash = {}
-        obj.keys.each do |key|
-          hash[key] = object_simplify(obj[key])
-        end
-        hash
-      end
-    end
-
-    def self.parse_type_tree(klass)
-      return nil unless klass.type_tree
-      nodes = klass.type_tree.nodes
-      tree = {}
-      stack = []
-      nodes.each do |node|
-        this = { name: node.name, node: node, children: [] }
-        if node.depth == 0
-          tree = this
-        else
-          stack[node.depth - 1][:children] << this
-        end
-        stack[node.depth] = this
-      end
-      tree
+      br.align(4) if node.need_align?
+      ret
     end
   end
 end

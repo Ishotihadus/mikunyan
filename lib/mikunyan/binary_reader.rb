@@ -5,18 +5,16 @@ require 'bin_utils'
 module Mikunyan
   # Class for manipulating binary string
   # @attr [Symbol] endian endianness
-  # @attr [Integer] pos position
-  # @attr [Integer] length data size
   class BinaryReader
-    attr_accessor :endian, :pos, :length
+    attr_accessor :endian
 
     # Constructor
-    # @param [String] data binary string
+    # @param [IO,String] io binary String or IO
     # @param [Symbol] endian endianness
-    def initialize(data, endian = :big)
-      @data = data
-      @pos = 0
-      @length = data.bytesize
+    def initialize(io, endian = :big)
+      @io = io.is_a?(String) ? StringIO.new(io, 'r') : io.dup
+      @io.binmode
+      @base_pos = @io.pos
       @endian = endian
     end
 
@@ -26,137 +24,117 @@ module Mikunyan
       @endian == :little
     end
 
-    # Jump to given position
-    # @param [Integer] pos position
-    def jmp(pos = 0)
-      @pos = pos
+    # Tells current potision
+    # @return [Integer]
+    def pos
+      @io.pos - @base_pos
     end
 
-    # Advance position given size
+    # Jumps to given position
+    # @param [Integer] pos position
+    def jmp(jmp_pos = 0)
+      @io.pos = jmp_pos + @base_pos
+    end
+    alias pos= jmp
+
+    # Advances position given size
     # @param [Integer] size size
     def adv(size = 0)
-      @pos += size
+      @io.seek(size, IO::SEEK_CUR)
     end
 
-    # Round up position to multiple of given size
+    # Rounds up position to multiple of given size
     # @param [Integer] size size
     def align(size)
-      @pos = (@pos + size - 1) / size * size
+      rem = pos % size
+      adv(size - rem) if rem > 0
     end
 
-    # Read given size of binary string and seek
+    # Reads given size of binary string and seek
     # @param [Integer] size size
     # @return [String] data
     def read(size)
-      data = @data.byteslice(@pos, size)
-      @pos += size
-      data
+      ret = @io.read(size)
+      raise EOFError if ret.nil? || size && ret.bytesize < size
+      ret
     end
 
-    # Read given size of binary string from specified position. This method does not seek.
+    # Reads given size of binary string from specified position. This method does not seek.
     # @param [Integer] size size
     # @param [Integer] pos position
     # @return [String] data
-    def read_abs(size, pos)
-      @data.byteslice(pos, size)
+    def read_abs(size, jmp_pos)
+      orig_pos = pos
+      jmp(jmp_pos)
+      ret = read(size)
+      jmp(orig_pos)
+      ret
     end
 
-    # Read string until null character
+    # Reads string until null character
     # @return [String] string
     def cstr
-      r = @data.unpack1("@#{pos}Z*")
-      @pos += r.bytesize + 1
-      r
+      raise EOFError if @io.eof?
+      @io.each_byte.take_while(&:nonzero?).pack('C*')
     end
 
-    # Read 8bit signed integer
-    def i8
-      i8s
+    # Reads an 8bit bool value
+    def bool
+      i8u != 0
     end
 
-    # Read 8bit signed integer
+    # Reads an 8bit signed integer value
     def i8s
-      r = BinUtils.get_sint8(@data, @pos)
-      @pos += 1
-      r
+      BinUtils.get_sint8(read(1))
     end
+    alias i8 i8s
 
-    # Read 8bit unsigned integer
+    # Reads an 8bit unsigned integer value
     def i8u
-      r = BinUtils.get_int8(@data, @pos)
-      @pos += 1
-      r
+      @io.getbyte
     end
 
-    # Read 16bit signed integer
-    def i16
-      i16s
-    end
-
-    # Read 16bit signed integer
+    # Reads a 16bit signed integer value
     def i16s
-      r = little? ? BinUtils.get_sint16_le(@data, @pos) : BinUtils.get_sint16_be(@data, @pos)
-      @pos += 2
-      r
+      little? ? BinUtils.get_sint16_le(read(2)) : BinUtils.get_sint16_be(read(2))
     end
+    alias i16 i16s
 
-    # Read 16bit unsigned integer
+    # Reads a 16bit unsigned integer value
     def i16u
-      r = little? ? BinUtils.get_int16_le(@data, @pos) : BinUtils.get_int16_be(@data, @pos)
-      @pos += 2
-      r
+      little? ? BinUtils.get_int16_le(read(2)) : BinUtils.get_int16_be(read(2))
     end
 
-    # Read 32bit signed integer
-    def i32
-      i32s
-    end
-
-    # Read 32bit signed integer
+    # Reads a 32bit signed integer value
     def i32s
-      r = little? ? BinUtils.get_sint32_le(@data, @pos) : BinUtils.get_sint32_be(@data, @pos)
-      @pos += 4
-      r
+      little? ? BinUtils.get_sint32_le(read(4)) : BinUtils.get_sint32_be(read(4))
     end
+    alias i32 i32s
 
-    # Read 32bit unsigned integer
+    # Reads a 32bit unsigned integer value
     def i32u
-      r = little? ? BinUtils.get_int32_le(@data, @pos) : BinUtils.get_int32_be(@data, @pos)
-      @pos += 4
-      r
+      little? ? BinUtils.get_int32_le(read(4)) : BinUtils.get_int32_be(read(4))
     end
 
-    # Read 64bit signed integer
-    def i64
-      i64s
-    end
-
-    # Read 64bit signed integer
+    # Reads a 64bit signed integer value
     def i64s
-      r = little? ? BinUtils.get_sint64_le(@data, @pos) : BinUtils.get_sint64_be(@data, @pos)
-      @pos += 8
-      r
+      little? ? BinUtils.get_sint64_le(read(8)) : BinUtils.get_sint64_be(read(8))
     end
+    alias i64 i64s
 
-    # Read 64bit unsigned integer
+    # Reads a 64bit unsigned integer value
     def i64u
-      r = little? ? BinUtils.get_int64_le(@data, @pos) : BinUtils.get_int64_be(@data, @pos)
-      @pos += 8
-      r
+      little? ? BinUtils.get_int64_le(read(8)) : BinUtils.get_int64_be(read(8))
     end
 
-    # Read 32bit floating point value
+    # Reads a 32bit floating point value
     def float
-      r = little? ? @data.byteslice(@pos, 4).unpack1('e') : @data.byteslice(@pos, 4).unpack1('g')
-      @pos += 4
-      r
+      little? ? read(4).unpack1('e') : read(4).unpack1('g')
     end
 
-    # Read 64bit floating point value
+    # Reads a 64bit floating point value
     def double
-      r = little? ? @data.byteslice(@pos, 8).unpack1('E') : @data.byteslice(@pos, 8).unpack1('G')
-      @pos += 8
-      r
+      little? ? read(8).unpack1('E') : read(8).unpack1('G')
     end
   end
 end

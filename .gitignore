@@ -15,3 +15,5 @@
 *.bundle
 
 .DS_Store
+.idea/
+*.iml
