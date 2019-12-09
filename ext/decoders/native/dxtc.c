@@ -1,12 +1,14 @@
+#include "dxtc.h"
 #include <stdint.h>
 #include <string.h>
-#include "dxtc.h"
 
-static inline uint_fast32_t color(uint_fast32_t r, uint_fast32_t g, uint_fast32_t b, uint_fast32_t a) {
+static inline uint_fast32_t color(uint_fast32_t r, uint_fast32_t g, uint_fast32_t b, uint_fast32_t a)
+{
     return r | g << 8 | b << 16 | a << 24;
 }
 
-static inline void rgb565(const uint_fast16_t c, int *r, int *g, int *b) {
+static inline void rgb565(const uint_fast16_t c, int* r, int* g, int* b)
+{
     *r = (c & 0xf800) >> 8;
     *g = (c & 0x07e0) >> 3;
     *b = (c & 0x001f) << 3;
@@ -15,7 +17,8 @@ static inline void rgb565(const uint_fast16_t c, int *r, int *g, int *b) {
     *b |= *b >> 5;
 }
 
-static inline void decode_dxt1_block(const uint64_t *data, uint32_t *outbuf) {
+static inline void decode_dxt1_block(const uint64_t* data, uint32_t* outbuf)
+{
     int r0, g0, b0, r1, g1, b1;
     int q0 = ((uint16_t*)data)[0];
     int q1 = ((uint16_t*)data)[1];
@@ -33,12 +36,13 @@ static inline void decode_dxt1_block(const uint64_t *data, uint32_t *outbuf) {
         outbuf[i] = c[d & 3];
 }
 
-void decode_dxt1(const uint64_t *data, const int w, const int h, uint32_t *image) {
+void decode_dxt1(const uint64_t* data, const int w, const int h, uint32_t* image)
+{
     int bcw = (w + 3) / 4;
     int bch = (h + 3) / 4;
     int clen_last = (w + 3) % 4 + 1;
     uint32_t buf[16];
-    const uint64_t *d = data;
+    const uint64_t* d = data;
     for (int t = 0; t < bch; t++) {
         for (int s = 0; s < bcw; s++, d++) {
             decode_dxt1_block(d, buf);
@@ -49,20 +53,21 @@ void decode_dxt1(const uint64_t *data, const int w, const int h, uint32_t *image
     }
 }
 
-static inline void decode_dxt5_block(const uint64_t *data, uint32_t *outbuf) {
+static inline void decode_dxt5_block(const uint64_t* data, uint32_t* outbuf)
+{
     uint_fast32_t a[8] = { ((uint8_t*)data)[0], ((uint8_t*)data)[1] };
     if (a[0] > a[1]) {
-        a[2] = (a[0] * 6 + a[1]    ) / 7;
+        a[2] = (a[0] * 6 + a[1]) / 7;
         a[3] = (a[0] * 5 + a[1] * 2) / 7;
         a[4] = (a[0] * 4 + a[1] * 3) / 7;
         a[5] = (a[0] * 3 + a[1] * 4) / 7;
         a[6] = (a[0] * 2 + a[1] * 5) / 7;
-        a[7] = (a[0]     + a[1] * 6) / 7;
+        a[7] = (a[0] + a[1] * 6) / 7;
     } else {
-        a[2] = (a[0] * 4 + a[1]    ) / 5;
+        a[2] = (a[0] * 4 + a[1]) / 5;
         a[3] = (a[0] * 3 + a[1] * 2) / 5;
         a[4] = (a[0] * 2 + a[1] * 3) / 5;
-        a[5] = (a[0]     + a[1] * 4) / 5;
+        a[5] = (a[0] + a[1] * 4) / 5;
         a[7] = 255;
     }
     for (int i = 0; i < 8; i++)
@@ -87,12 +92,13 @@ static inline void decode_dxt5_block(const uint64_t *data, uint32_t *outbuf) {
         outbuf[i] = a[da & 7] | c[dc & 3];
 }
 
-void decode_dxt5(const uint64_t *data, const int w, const int h, uint32_t *image) {
+void decode_dxt5(const uint64_t* data, const int w, const int h, uint32_t* image)
+{
     int bcw = (w + 3) / 4;
     int bch = (h + 3) / 4;
     int clen_last = (w + 3) % 4 + 1;
     uint32_t buf[16];
-    const uint64_t *d = data;
+    const uint64_t* d = data;
     for (int t = 0; t < bch; t++) {
         for (int s = 0; s < bcw; s++, d += 2) {
             decode_dxt5_block(d, buf);

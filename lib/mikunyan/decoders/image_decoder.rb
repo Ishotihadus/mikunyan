@@ -105,26 +105,19 @@ module Mikunyan
         when 62 # RG16
           decode_rg16(width, height, bin)
         when 63 # R8
-          decode_r8(width, height, bin)
+          decode_a8(width, height, bin)
         # when 64 # ETC_RGB4Crunched
         # when 65 # ETC2_RGBA8Crunched
         end
       end
 
-      # Decode image from RGBA4444 binary
+      # Decode image from A8 binary
       # @param [Integer] width image width
       # @param [Integer] height image height
       # @param [String] bin binary to decode
-      # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
-      def self.decode_rgba4444(width, height, bin, endian = :big)
-        mem = String.new(capacity: width * height * 4)
-        (width * height).times do |i|
-          c = endian == :little ? BinUtils.get_int16_le(bin, i * 2) : BinUtils.get_int16_be(bin, i * 2)
-          c = ((c & 0xf000) << 12) | ((c & 0x0f00) << 8) | ((c & 0x00f0) << 4) | (c & 0x000f)
-          BinUtils.append_int32_be!(mem, c << 4 | c)
-        end
-        ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
+      def self.decode_a8(width, height, bin)
+        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_a8(bin, width * height)).flip
       end
 
       # Decode image from ARGB4444 binary
@@ -141,52 +134,6 @@ module Mikunyan
           BinUtils.append_int32_be!(mem, c << 4 | c)
         end
         ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
-      end
-
-      # Decode image from RGB565 binary
-      # @param [Integer] width image width
-      # @param [Integer] height image height
-      # @param [String] bin binary to decode
-      # @param [Symbol] endian endianness of binary
-      # @return [ChunkyPNG::Image] decoded image
-      def self.decode_rgb565(width, height, bin, endian = :big)
-        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_rgb565(bin, width * height, endian == :big)).flip
-      end
-
-      # Decode image from A8 binary
-      # @param [Integer] width image width
-      # @param [Integer] height image height
-      # @param [String] bin binary to decode
-      # @return [ChunkyPNG::Image] decoded image
-      def self.decode_a8(width, height, bin)
-        mem = String.new(capacity: width * height * 3)
-        (width * height).times do |i|
-          c = BinUtils.get_int8(bin, i)
-          BinUtils.append_int8!(mem, c, c, c)
-        end
-        ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
-      end
-
-      # Decode image from R8 binary
-      # @param [Integer] width image width
-      # @param [Integer] height image height
-      # @param [String] bin binary to decode
-      # @return [ChunkyPNG::Image] decoded image
-      def self.decode_r8(width, height, bin)
-        decode_a8(width, height, bin)
-      end
-
-      # Decode image from RG16 binary
-      # @param [Integer] width image width
-      # @param [Integer] height image height
-      # @param [String] bin binary to decode
-      # @return [ChunkyPNG::Image] decoded image
-      def self.decode_rg16(width, height, bin)
-        mem = String.new(capacity: width * height * 3)
-        (width * height).times do |i|
-          BinUtils.append_int16_int8_be!(mem, BinUtils.get_int16_be(bin, i * 2), 0)
-        end
-        ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
       end
 
       # Decode image from RGB24 binary
@@ -221,6 +168,55 @@ module Mikunyan
         ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
       end
 
+      # Decode image from RGB565 binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @param [Symbol] endian endianness of binary
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_rgb565(width, height, bin, endian = :big)
+        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_rgb565(bin, width * height, endian == :big)).flip
+      end
+
+      # Decode image from R16 binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @param [Symbol] endian endianness of binary
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_r16(width, height, bin, endian = :big)
+        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_r16(bin, width * height, endian == :big)).flip
+      end
+
+      # Decode image from RGBA4444 binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @param [Symbol] endian endianness of binary
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_rgba4444(width, height, bin, endian = :big)
+        mem = String.new(capacity: width * height * 4)
+        (width * height).times do |i|
+          c = endian == :little ? BinUtils.get_int16_le(bin, i * 2) : BinUtils.get_int16_be(bin, i * 2)
+          c = ((c & 0xf000) << 12) | ((c & 0x0f00) << 8) | ((c & 0x00f0) << 4) | (c & 0x000f)
+          BinUtils.append_int32_be!(mem, c << 4 | c)
+        end
+        ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
+      end
+
+      # Decode image from RG16 binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_rg16(width, height, bin)
+        mem = String.new(capacity: width * height * 3)
+        (width * height).times do |i|
+          BinUtils.append_int16_int8_be!(mem, BinUtils.get_int16_be(bin, i * 2), 0)
+        end
+        ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
+      end
+
       # Decode image from BGRA32 binary
       # @param [Integer] width image width
       # @param [Integer] height image height
@@ -233,22 +229,6 @@ module Mikunyan
           BinUtils.append_int32_be!(mem, ((c & 0x00ffffff) << 8) | ((c & 0xff000000) >> 24))
         end
         ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
-      end
-
-      # Decode image from R16 binary
-      # @param [Integer] width image width
-      # @param [Integer] height image height
-      # @param [String] bin binary to decode
-      # @param [Symbol] endian endianness of binary
-      # @return [ChunkyPNG::Image] decoded image
-      def self.decode_r16(width, height, bin, endian = :big)
-        mem = String.new(capacity: width * height * 3)
-        (width * height).times do |i|
-          c = endian == :little ? BinUtils.get_int16_le(bin, i * 2) : BinUtils.get_int16_be(bin, i * 2)
-          c = f2i(r / 65535.0)
-          BinUtils.append_int8!(mem, c, c, c)
-        end
-        ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
       end
 
       # Decode image from RGB9e5 binary

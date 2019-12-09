@@ -1,26 +1,57 @@
+#include "rgb.h"
+#include "common.h"
 #include <stdint.h>
 
-static inline int is_system_little() {
-    int x = 1;
-    return *(char*)&x == 1;
+void decode_a8(const uint8_t* data, const int size, uint8_t* image)
+{
+    const uint8_t *d = data, *d_end = data + size;
+    for (int i = 0; d < d_end; d++) {
+        image[i++] = *d;
+        image[i++] = *d;
+        image[i++] = *d;
+    }
 }
 
-void decode_rgb565(const uint16_t* data, const int size, const int is_big_endian, uint8_t* image) {
-    const uint16_t *d = data;
-    if (is_big_endian == is_system_little()) {
-        uint8_t *p = image;
-        for (int i = 0; i < size; i++, d++, p += 4) {
-            uint_fast8_t r = *d & 0x00f8;
-            uint_fast8_t g = (*d & 0x0007) << 5 | (*d & 0xe000) >> 11;
-            uint_fast8_t b = (*d & 0x1f00) >> 5;
-            p[0] = r | r >> 5;
-            p[1] = g | g >> 6;
-            p[2] = b | b >> 5;
-            p[3] = 255;
+void decode_r16(const uint16_t* data, const int size, const int endian_big, uint8_t* image)
+{
+    const uint16_t *d = data, *d_end = data + size;
+    if (IS_LITTLE_ENDIAN == !endian_big) {
+        // Same endian
+        for (int i = 0; d < d_end; d++) {
+            uint8_t c = *d >> 8;
+            image[i++] = c;
+            image[i++] = c;
+            image[i++] = c;
         }
     } else {
-        uint32_t *p = (uint32_t*)image;
-        for (int i = 0; i < size; i++, d++, p++)
-            *p = (*d & 0xf800) >> 8 | *d >> 13 | (*d & 0x7e0) << 5 | (*d & 0x60) << 3 | *d << 19 | (*d & 0x1c) << 14 | 0xff000000;
+        // Different endian
+        for (int i = 0; d < d_end; d++) {
+            uint8_t c = *d;
+            image[i++] = c;
+            image[i++] = c;
+            image[i++] = c;
+        }
+    }
+}
+
+void decode_rgb565(const uint16_t* data, const int size, const int endian_big, uint8_t* image)
+{
+    const uint16_t *d = data, *d_end = data + size;
+    if (IS_LITTLE_ENDIAN == !endian_big) {
+        // Same endian
+        // RRRRR GGG | GGG BBBBB
+        for (int i = 0; d < d_end; d++) {
+            image[i++] = (*d >> 8 & 0xf8) | (*d >> 13);
+            image[i++] = (*d >> 3 & 0xfc) | (*d >> 9 & 3);
+            image[i++] = (*d << 3) | (*d >> 2 & 7);
+        }
+    } else {
+        // Different endian
+        // GGG BBBBB | RRRRR GGG
+        for (int i = 0; d < d_end; d++) {
+            image[i++] = (*d & 0xf8) | (*d >> 5 & 7);
+            image[i++] = (*d << 5 & 0xe0) | (*d >> 11 & 0x1c) | (*d >> 1 & 3);
+            image[i++] = (*d >> 5 & 0xf8) | (*d >> 10 & 0x7);
+        }
     }
 }
