@@ -12,6 +12,16 @@ void decode_a8(const uint8_t* data, const int size, uint8_t* image)
     }
 }
 
+void decode_r8(const uint8_t* data, const int size, uint8_t* image)
+{
+    const uint8_t *d = data, *d_end = data + size;
+    for (int i = 0; d < d_end; d++) {
+        image[i++] = *d;
+        image[i++] = 0;
+        image[i++] = 0;
+    }
+}
+
 void decode_r16(const uint16_t* data, const int size, const int endian_big, uint8_t* image)
 {
     const uint16_t *d = data, *d_end = data + size;
@@ -20,16 +30,15 @@ void decode_r16(const uint16_t* data, const int size, const int endian_big, uint
         for (int i = 0; d < d_end; d++) {
             uint8_t c = *d >> 8;
             image[i++] = c;
-            image[i++] = c;
-            image[i++] = c;
+            image[i++] = 0;
+            image[i++] = 0;
         }
     } else {
         // Different endian
         for (int i = 0; d < d_end; d++) {
-            uint8_t c = *d;
-            image[i++] = c;
-            image[i++] = c;
-            image[i++] = c;
+            image[i++] = *d;
+            image[i++] = 0;
+            image[i++] = 0;
         }
     }
 }

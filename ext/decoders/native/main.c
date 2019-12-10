@@ -24,6 +24,23 @@ static VALUE rb_decode_a8(VALUE self, VALUE rb_data, VALUE size)
 }
 
 /*
+ * Decode image from R8 binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] size width * height
+ * @return [String] decoded rgb binary
+ */
+static VALUE rb_decode_r8(VALUE self, VALUE rb_data, VALUE size)
+{
+    if (RSTRING_LEN(rb_data) < FIX2LONG(size))
+        rb_raise(rb_eStandardError, "Data size is not enough.");
+    VALUE ret = rb_str_buf_new(FIX2LONG(size) * 3);
+    decode_r8((uint8_t*)RSTRING_PTR(rb_data), FIX2INT(size), (uint8_t*)RSTRING_PTR(ret));
+    rb_str_set_len(ret, FIX2LONG(size) * 3);
+    return ret;
+}
+
+/*
  * Decode image from R16 binary
  *
  * @param [String] rb_data binary to decode
@@ -107,11 +124,10 @@ static VALUE rb_decode_etc2(VALUE self, VALUE rb_data, VALUE w, VALUE h)
  */
 static VALUE rb_decode_etc2a1(VALUE self, VALUE rb_data, VALUE w, VALUE h)
 {
-    if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 9)
+    if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 8)
         rb_raise(rb_eStandardError, "Data size is not enough.");
     uint32_t* image = (uint32_t*)calloc(FIX2LONG(w) * FIX2LONG(h), sizeof(uint32_t));
-    decode_etc2a8((uint64_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h),
-        image);
+    decode_etc2a1((uint64_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h), image);
     VALUE ret = rb_str_new((char*)image, FIX2LONG(w) * FIX2LONG(h) * sizeof(uint32_t));
     free(image);
     return ret;
@@ -130,8 +146,7 @@ static VALUE rb_decode_etc2a8(VALUE self, VALUE rb_data, VALUE w, VALUE h)
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 16)
         rb_raise(rb_eStandardError, "Data size is not enough.");
     uint32_t* image = (uint32_t*)calloc(FIX2LONG(w) * FIX2LONG(h), sizeof(uint32_t));
-    decode_etc2a8((uint64_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h),
-        image);
+    decode_etc2a8((uint64_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h), image);
     VALUE ret = rb_str_new((char*)image, FIX2LONG(w) * FIX2LONG(h) * sizeof(uint32_t));
     free(image);
     return ret;
@@ -152,9 +167,8 @@ static VALUE rb_decode_astc(VALUE self, VALUE rb_data, VALUE w, VALUE h,
 {
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + FIX2LONG(bw) - 1) / FIX2LONG(bw)) * ((FIX2LONG(h) + FIX2LONG(bh) - 1) / FIX2LONG(bh)) * 16)
         rb_raise(rb_eStandardError, "Data size is not enough.");
-    const uint8_t* data = (uint8_t*)RSTRING_PTR(rb_data);
     uint32_t* image = (uint32_t*)calloc(FIX2LONG(w) * FIX2LONG(h), sizeof(uint32_t));
-    decode_astc(data, FIX2INT(w), FIX2INT(h), FIX2INT(bw), FIX2INT(bh), image);
+    decode_astc((uint8_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h), FIX2INT(bw), FIX2INT(bh), image);
     VALUE ret = rb_str_new((char*)image, FIX2LONG(w) * FIX2LONG(h) * sizeof(uint32_t));
     free(image);
     return ret;
@@ -173,7 +187,7 @@ static VALUE rb_decode_dxt1(VALUE self, VALUE rb_data, VALUE w, VALUE h)
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 8)
         rb_raise(rb_eStandardError, "Data size is not enough.");
     uint32_t* image = (uint32_t*)calloc(FIX2LONG(w) * FIX2LONG(h), sizeof(uint32_t));
-    decode_dxt1((uint64_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h), image);
+    decode_dxt1((uint8_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h), image);
     VALUE ret = rb_str_new((char*)image, FIX2LONG(w) * FIX2LONG(h) * sizeof(uint32_t));
     free(image);
     return ret;
@@ -192,7 +206,7 @@ static VALUE rb_decode_dxt5(VALUE self, VALUE rb_data, VALUE w, VALUE h)
     if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 16)
         rb_raise(rb_eStandardError, "Data size is not enough.");
     uint32_t* image = (uint32_t*)calloc(FIX2LONG(w) * FIX2LONG(h), sizeof(uint32_t));
-    decode_dxt5((uint64_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h), image);
+    decode_dxt5((uint8_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h), image);
     VALUE ret = rb_str_new((char*)image, FIX2LONG(w) * FIX2LONG(h) * sizeof(uint32_t));
     free(image);
     return ret;
@@ -203,6 +217,7 @@ void Init_native()
     VALUE mMikunyan = rb_define_module("Mikunyan");
     VALUE mDecodeHelper = rb_define_module_under(mMikunyan, "DecodeHelper");
     rb_define_module_function(mDecodeHelper, "decode_a8", rb_decode_a8, 2);
+    rb_define_module_function(mDecodeHelper, "decode_r8", rb_decode_r8, 2);
     rb_define_module_function(mDecodeHelper, "decode_r16", rb_decode_r16, 3);
     rb_define_module_function(mDecodeHelper, "decode_rgb565", rb_decode_rgb565, 3);
     rb_define_module_function(mDecodeHelper, "decode_etc1", rb_decode_etc1, 3);

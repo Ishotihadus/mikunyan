@@ -106,7 +106,7 @@ module Mikunyan
         when 62 # RG16
           decode_rg16(width, height, bin)
         when 63 # R8
-          decode_a8(width, height, bin)
+          decode_r8(width, height, bin)
         end
       end
 
@@ -117,6 +117,15 @@ module Mikunyan
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_a8(width, height, bin)
         ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_a8(bin, width * height)).flip
+      end
+
+      # Decode image from R8 binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_r8(width, height, bin)
+        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_r8(bin, width * height)).flip
       end
 
       # Decode image from ARGB4444 binary
@@ -240,14 +249,12 @@ module Mikunyan
         mem = String.new(capacity: width * height * 3)
         (width * height).times do |i|
           n = endian == :little ? BinUtils.get_int32_le(bin, i * 4) : BinUtils.get_int32_be(bin, i * 4)
-          e = (n & 0xf8000000) >> 27
-          r = (n & 0x7fc0000) >> 9
-          g = (n & 0x3fe00) >> 9
-          b = n & 0x1ff
-          r = (r / 512r + 1) * (2**(e - 15))
-          g = (g / 512r + 1) * (2**(e - 15))
-          b = (b / 512r + 1) * (2**(e - 15))
-          BinUtils.append_int8!(mem, f2i(r), f2i(g), f2i(b))
+          b = n >> 18 & 0x1ff
+          g = n >> 9 & 0x1ff
+          r = n & 0x1ff
+          scale = n >> 27 & 0x1f
+          scale = 2**(scale - 24)
+          BinUtils.append_int8!(mem, f2i(r * scale), f2i(g * scale), f2i(b * scale))
         end
         ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
       end
@@ -441,24 +448,21 @@ module Mikunyan
       def self.create_astc_file(object)
         astc_list = {
           48 => 4, 49 => 5, 50 => 6, 51 => 8, 52 => 10, 53 => 12,
-          54 => 4, 55 => 5, 56 => 6, 57 => 8, 58 => 10, 59 => 12
+          54 => 4, 55 => 5, 56 => 6, 57 => 8, 58 => 10, 59 => 12,
+          66 => 4, 67 => 5, 68 => 6, 69 => 8, 70 => 10, 71 => 12
         }
-        width = object['m_Width']
-        height = object['m_Height']
-        fmt = object['m_TextureFormat']
-        bin = object['image data']
-        width = width.value if width.class == ObjectValue
-        height = height.value if height.class == ObjectValue
-        fmt = fmt.value if fmt.class == ObjectValue
-        bin = bin.value if bin.class == ObjectValue
-        if width && height && fmt && astc_list[fmt]
-          header = "\x13\xAB\xA1\x5C".force_encoding('ascii-8bit')
-          header << [astc_list[fmt], astc_list[fmt], 1].pack('C*')
-          header << [width].pack('V').byteslice(0, 3)
-          header << [height].pack('V').byteslice(0, 3)
-          header << "\x01\x00\x00"
-          header + bin
-        end
+        width = object['m_Width']&.value
+        height = object['m_Height']&.value
+        fmt = object['m_TextureFormat']&.value
+        bin = object['image data']&.value
+        return unless width && height && fmt && bin && astc_list[fmt]
+        bin = object['m_StreamData']&.value if bin.empty?
+        return unless bin
+        header = [0x13, 0xab, 0xa1, 0x5c, astc_list[fmt], astc_list[fmt], 1].pack('C*')
+        header << [width].pack('V').byteslice(0, 3)
+        header << [height].pack('V').byteslice(0, 3)
+        header << [1, 0, 0].pack('C*')
+        header + bin
       end
 
       # convert 16bit float
