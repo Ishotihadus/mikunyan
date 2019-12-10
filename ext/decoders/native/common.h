@@ -7,11 +7,30 @@
 #elif !defined BYTE_ORDER
 #include <endian.h>
 #endif
-#ifndef LITTLE_ENDIAN
-#define LITTLE_ENDIAN __LITTLE_ENDIAN
+
+#ifndef BYTE_ORDER
+#if defined(__BYTE_ORDER__)
+#define BYTE_ORDER __BYTE_ORDER__
+#elif defined(__BYTE_ORDER)
+#define BYTE_ORDER __BYTE_ORDER
+#else
+#error "Neither BYTE_ORDER nor __BYTE_ORDER__ is defined."
 #endif
-#ifndef BIG_ENDIAN
+#endif
+
+#ifndef LITTLE_ENDIAN
+#if defined(__LITTLE_ENDIAN)
+#define LITTLE_ENDIAN __LITTLE_ENDIAN
 #define BIG_ENDIAN __BIG_ENDIAN
+#elif defined(__LITTLE_ENDIAN__)
+#define LITTLE_ENDIAN __LITTLE_ENDIAN__
+#define BIG_ENDIAN __BIG_ENDIAN__
+#elif defined(__ORDER_LITTLE_ENDIAN__)
+#define LITTLE_ENDIAN __ORDER_LITTLE_ENDIAN__
+#define BIG_ENDIAN __ORDER_BIG_ENDIAN__
+#else
+#error "Neither LITTLE_ENDIAN, __LITTLE_ENDIAN, nor __ORDER_LITTLE_ENDIAN__ is defined."
+#endif
 #endif
 
 #if BYTE_ORDER == LITTLE_ENDIAN

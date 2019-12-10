@@ -147,7 +147,7 @@ void Init_crunch()
     VALUE mMikunyan = rb_define_module("Mikunyan");
     VALUE mDecodeHelper = rb_define_module_under(mMikunyan, "DecodeHelper");
     VALUE cCrunchStream = rb_define_class_under(mDecodeHelper, "CrunchStream", rb_cObject);
-    rb_attr(cCrunchStream, rb_intern("data"), TRUE, FALSE, TRUE);
+    rb_attr(cCrunchStream, rb_intern("data"), 1, 0, 1);
 
     const char* stFileInfoStr[] = {"struct_size", "actual_data_size", "header_size", "total_palette_size", "tables_size", "levels", "level_compressed_size", "color_endpoint_palette_entries", "color_selector_palette_entries", "alpha_endpoint_palette_entries", "alpha_selector_palette_entries"};
     stFileInfo = create_rb_struct(sizeof(stFileInfoStr) / sizeof(char*), stFileInfoStr);
