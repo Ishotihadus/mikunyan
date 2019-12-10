@@ -7,6 +7,7 @@ rescue LoadError
 end
 require 'bin_utils'
 require 'mikunyan/decoders/native'
+require 'mikunyan/decoders/crunch'
 
 module Mikunyan
   module Decoder
@@ -70,8 +71,8 @@ module Mikunyan
         # when 25 # BC7
         # when 26 # BC4
         # when 27 # BC5
-        # when 28 # DXT1Crunched
-        # when 29 # DXT5Crunched
+        when 28, 29, 64, 65 # DXT1Crunched, DXT5Crunched, ETC_RGB4Crunched, ETC2_RGBA8Crunched
+          decode_crunched(width, height, bin)
         # when 30 # PVRTC_RGB2
         # when 31, -127 # PVRTC_RGBA2, PVRTC_2BPP_RGBA
         # when 32 # PVRTC_RGB4
@@ -106,8 +107,6 @@ module Mikunyan
           decode_rg16(width, height, bin)
         when 63 # R8
           decode_a8(width, height, bin)
-        # when 64 # ETC_RGB4Crunched
-        # when 65 # ETC2_RGBA8Crunched
         end
       end
 
@@ -412,6 +411,28 @@ module Mikunyan
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_astc(width, height, blocksize, bin)
         ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_astc(bin, width, height, blocksize, blocksize))
+      end
+
+      # Decode image from crunched texture binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image,nil] decoded image
+      def self.decode_crunched(width, height, bin)
+        file = Mikunyan::DecodeHelper::CrunchStream.new(bin)
+        level_info = file.level_info(0)
+        case level_info.format
+        when Mikunyan::DecodeHelper::CrunchStream::Format::DXT1
+          decode_dxt1(width, height, file.unpack_level(0))
+        when Mikunyan::DecodeHelper::CrunchStream::Format::DXT5
+          decode_dxt5(width, height, file.unpack_level(0))
+        when Mikunyan::DecodeHelper::CrunchStream::Format::ETC1
+          decode_etc1(width, height, file.unpack_level(0))
+        when Mikunyan::DecodeHelper::CrunchStream::Format::ETC2
+          decode_etc2rgb(width, height, file.unpack_level(0))
+        when Mikunyan::DecodeHelper::CrunchStream::Format::ETC2A
+          decode_etc2rgba8(width, height, file.unpack_level(0))
+        end
       end
 
       # Create ASTC file data from ObjectValue

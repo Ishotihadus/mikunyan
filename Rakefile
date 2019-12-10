@@ -9,8 +9,10 @@ end
 
 task build: :compile
 
-Rake::ExtensionTask.new('decoders/native') do |ext|
-  ext.lib_dir = 'lib/mikunyan'
+%w[decoders/native decoders/crunch].each do |dir|
+  Rake::ExtensionTask.new(dir) do |ext|
+    ext.lib_dir = 'lib/mikunyan'
+  end
 end
 
 task default: %i[clobber compile spec]
