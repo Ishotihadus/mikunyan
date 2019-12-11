@@ -1,6 +1,7 @@
 #include "astc.h"
 #include "dxtc.h"
 #include "etc.h"
+#include "pvrtc.h"
 #include "rgb.h"
 #include <ruby.h>
 #include <stdint.h>
@@ -212,6 +213,30 @@ static VALUE rb_decode_dxt5(VALUE self, VALUE rb_data, VALUE w, VALUE h)
     return ret;
 }
 
+/*
+ * Decode image from PVRTC1 4bpp compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] w image width
+ * @param [Integer] h image height
+ * @return [String] decoded rgba binary
+ */
+static VALUE rb_decode_pvrtc1_4bpp(VALUE self, VALUE rb_data, VALUE w, VALUE h)
+{
+    if (RSTRING_LEN(rb_data) < ((FIX2LONG(w) + 3) / 4) * ((FIX2LONG(h) + 3) / 4) * 8) {
+        rb_raise(rb_eStandardError, "Data size is not enough.");
+        return Qnil;
+    }
+    size_t buffer_length = FIX2LONG(w) * FIX2LONG(h) * 8;
+    VALUE ret = rb_str_buf_new(buffer_length);
+    if (!decode_pvrtc_4bpp((uint8_t*)RSTRING_PTR(rb_data), FIX2INT(w), FIX2INT(h), (uint32_t*)RSTRING_PTR(ret))) {
+        rb_raise(rb_eStandardError, "internal error");
+        return Qnil;
+    }
+    rb_str_set_len(ret, buffer_length);
+    return ret;
+}
+
 void Init_native()
 {
     VALUE mMikunyan = rb_define_module("Mikunyan");
@@ -227,4 +252,5 @@ void Init_native()
     rb_define_module_function(mDecodeHelper, "decode_astc", rb_decode_astc, 5);
     rb_define_module_function(mDecodeHelper, "decode_dxt1", rb_decode_dxt1, 3);
     rb_define_module_function(mDecodeHelper, "decode_dxt5", rb_decode_dxt5, 3);
+    rb_define_module_function(mDecodeHelper, "decode_pvrtc1_4bpp", rb_decode_pvrtc1_4bpp, 3);
 }

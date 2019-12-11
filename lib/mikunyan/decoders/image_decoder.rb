@@ -73,10 +73,10 @@ module Mikunyan
         # when 27 # BC5
         when 28, 29, 64, 65 # DXT1Crunched, DXT5Crunched, ETC_RGB4Crunched, ETC2_RGBA8Crunched
           decode_crunched(width, height, bin)
-        # when 30 # PVRTC_RGB2
-        # when 31, -127 # PVRTC_RGBA2, PVRTC_2BPP_RGBA
-        # when 32 # PVRTC_RGB4
-        # when 33 # PVRTC_RGBA4
+        when 30, 31, -127 # PVRTC_RGB2, PVRTC_RGBA2, PVRTC_2BPP_RGBA
+          decode_pvrtc1_2bpp(width, height, bin)
+        when 32, 33 # PVRTC_RGB4, PVRTC_RGBA4
+          decode_pvrtc1_4bpp(width, height, bin)
         when 34 # ETC_RGB4
           decode_etc1(width, height, bin)
         # when 41 # EAC_R
@@ -372,6 +372,25 @@ module Mikunyan
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_dxt5(width, height, bin)
         ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_dxt5(bin, width, height))
+      end
+
+      # Decode image from PVRTC1 4bpp compressed binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_pvrtc1_4bpp(width, height, bin)
+        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_pvrtc1_4bpp(bin, width, height))
+      end
+
+      # Decode image from PVRTC1 2bpp compressed binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_pvrtc1_2bpp(width, height, bin)
+        # ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_pvrtc1_2bpp(bin, width, height))
+        nil
       end
 
       # Decode image from ETC1 compressed binary
