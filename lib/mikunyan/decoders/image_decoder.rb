@@ -389,8 +389,7 @@ module Mikunyan
       # @param [String] bin binary to decode
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_pvrtc1_2bpp(width, height, bin)
-        # ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_pvrtc1_2bpp(bin, width, height))
-        nil
+        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_pvrtc1_2bpp(bin, width, height))
       end
 
       # Decode image from ETC1 compressed binary
