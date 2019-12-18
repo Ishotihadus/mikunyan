@@ -76,11 +76,10 @@ module Mikunyan
     # Load Asset from binary string
     # @param [String,IO] bin binary data
     # @param [String] name Asset name
-    # @param [String] resource resource data
-    # @param [String] res_s resS data
+    # @param [Mikunyan::AssetBundle] parent_bundle Parent AssetBundle
     # @return [Mikunyan::Asset] deserialized Asset object
-    def self.load(bin, name, resource = nil, res_s = nil)
-      r = Asset.new(name, resource, res_s)
+    def self.load(bin, name, parent_bundle = nil)
+      r = Asset.new(name, parent_bundle)
       r.send(:load, bin)
       r
     end
@@ -151,11 +150,11 @@ module Mikunyan
 
     private
 
-    def initialize(name, resource = nil, res_s = nil)
+    # @param [Mikunyan::AssetBundle] bundle
+    def initialize(name, bundle = nil)
       @name = name
       @endian = :big
-      @resource = resource
-      @res_s = res_s
+      @bundle = bundle
     end
 
     def load(bin)
@@ -292,18 +291,20 @@ module Mikunyan
       else
         ret.attr = children.map{|c| [c.name, parse_object_private(br, c)]}.to_h
         if node.type == 'StreamingInfo'
-          ret.value =
-            if ret['path'].value == "archive:/#{name}/#{name}.resource"
-              @resource&.byteslice(ret['offset'].value, ret['size'].value)
-            elsif ret['path'].value == "archive:/#{name}/#{name}.resS"
-              @res_s&.byteslice(ret['offset'].value, ret['size'].value)
-            end
+          ret.value = get_stream_blob(ret['path'].value, ret['offset'].value, ret['size'].value)
         else
           ret.is_struct = true
         end
       end
       br.align(4) if node.need_align?
       ret
+    end
+
+    def get_stream_blob(path, offset, size)
+      return nil unless path && @bundle
+      return nil if path.empty?
+      path["archive:/#{@name}/"] = '' if path.start_with?("archive:/#{@name}/")
+      @bundle.blobs[path]&.byteslice(offset, size)
     end
   end
 end

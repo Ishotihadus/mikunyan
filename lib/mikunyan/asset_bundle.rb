@@ -116,8 +116,7 @@ module Mikunyan
     def process_asset_entries(asset_entries)
       @blobs = asset_entries.select(&:blob?).map{|e| [e.name, e.data]}.to_h
       @assets = asset_entries.reject(&:blob?).map do |e|
-        basename = split_name(e.name)[0]
-        Asset.load(e.data, e.name, @blobs["#{basename}.resource"], @blobs["#{basename}.resS"])
+        Asset.load(e.data, e.name, self)
       end
     end
 
