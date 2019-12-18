@@ -1,8 +1,8 @@
 # mikunyan
 
-A library to deserialize AssetBundle files (\*.unity3d) and asset files of Unity.
+A Ruby library to deserialize AssetBundle files (\*.unity3d) and asset files of Unity.
 
-The name "Mikunyan" is derived from [Miku Maekawa](http://www.project-imas.com/wiki/Miku_Maekawa).
+The name “Mikunyan” is derived from [Miku Maekawa](http://www.project-imas.com/wiki/Miku_Maekawa).
 
 Ruby-Doc: http://www.rubydoc.info/gems/mikunyan/
 
@@ -50,7 +50,7 @@ asset = bundle.assets[0]
 # asset = Mikunyan::Asset.file(filename)
 
 # get a list of objects
-list = asset.objects
+objects = asset.objects
 
 # get PathIds of objects
 path_ids = asset.path_ids
@@ -59,10 +59,10 @@ path_ids = asset.path_ids
 containers = asset.containers
 
 # load an object (Mikunyan::ObjectValue)
-obj = asset.parse_object(path_ids[0])
+obj = asset.parse_object(objects[0])
 
 # load an object to Ruby data structures
-obj_hash = asset.parse_object_simple(path_ids[0])
+obj_hash = asset.parse_object_simple(objects[0])
 
 # a Hash can be serialized to JSON
 require 'json'
@@ -71,7 +71,7 @@ obj_hash.to_json
 
 ### Mikunyan::ObjectValue
 
-`Mikunyan::ObjectValue` can be 3 types: value, array and key-value table.
+`Mikunyan::ObjectValue` is formed in 3 types: value, array, and key-value table.
 
 ```ruby
 # get whether obj is value or not
@@ -106,26 +106,22 @@ obj.key
 
 ### Unpack Texture2D
 
-You can get image data directly from Texture2D object. Output object's class is `ChunkyPNG::Image`.
+Mikunyan generates `ChunkyPNG::Image` images directly from Texture2D objects.
 
-Some basic texture formats (1–5, 7, 9, 13–20, 22, 62, and 63), DXT1 (10), DXT5 (12), ETC_RGB4 (34), ETC2 (45–47), and ASTC (48–59) are available.
+Mikunyan can decode images in basic texture formats (1–5, 7, 9, 13–20, 22, 62, and 63), DXT1 (10), DXT5 (12), PVRTC1 (30–33), ETC (34), ETC2 (45–47), ASTC (48–59), HDR ASTC (66–71), or Crunched format (28, 29, 64, 65).
 
 ```ruby
-require 'mikunyan/decoders'
-
 # get some Texture2D asset
 obj = asset.parse_object(path_ids[1])
 
 # you can get image data
-img = Mikunyan::ImageDecoder.decode_object(obj)
+img = obj.generate_png
 
 # save it!
 img.save('mikunyan.png')
 ```
 
-Mikunyan cannot decode ASTC with HDR data. Use `Mikunyan::ImageDecoder.create_astc_file` instead.
-
-### Json / YAML Outputter
+### JSON / YAML Outputter
 
 `mikunyan-json` is an executable command for converting unity3d to JSON.
 
@@ -143,77 +139,97 @@ Available options:
 
     $ mikunyan-image bundle.unity3d
 
-The console log is JSON data of output textures as follows.
+The command generates JSON text, which contains information about unpacked images.
 
 ```json
 [
-    {
-        "name": "bg_b",
-        "width": 1024,
-        "height": 1024,
-        "path_id": -744818715421265689
-    },
-    {
-        "name": "bg_a",
-        "width": 1024,
-        "height": 1024,
-        "path_id": 5562124901460497987
-    }
+  {
+    "name": "bg_x",
+    "width": 512,
+    "height": 512,
+    "format": 56,
+    "path_id": -8556635666641176453
+  },
+  {
+    "name": "bg",
+    "width": 1024,
+    "height": 1024,
+    "format": 56,
+    "path_id": -1848302546424191165
+  }
 ]
 ```
 
-If the option `--sprite` specified, `mikunyan-image` will output sprites. The logged JSON also contains sprite information.
+If the option `--sprite` is specified, `mikunyan-image` will output sprites. The logged JSON also contains information about sprites.
 
 ```json
 [
-    {
-        "name": "bg_a",
-        "width": 1024,
-        "height": 1024,
-        "path_id": 5562124901460497987,
-        "sprites": [
-            {
-                "name": "bg_a_0",
-                "x": 1.0,
-                "y": 303.0,
-                "width": 1022.0,
-                "height": 720.0,
-                "path_id": -7546240288260780845
-            },
-            {
-                "name": "bg_a_1",
-                "x": 1.0,
-                "y": 1.0,
-                "width": 720.0,
-                "height": 258.0,
-                "path_id": -5293490190204738553
-            }
-        ]
-    },
-    {
-        "name": "bg_b",
-        "width": 1024,
-        "height": 1024,
-        "path_id": -744818715421265689,
-        "sprites": [
-            {
-                "name": "bg_b_1",
-                "x": 1.0,
-                "y": 1.0,
-                "width": 720.0,
-                "height": 258.0,
-                "path_id": 4884595733995530103
-            },
-            {
-                "name": "bg_b_0",
-                "x": 1.0,
-                "y": 303.0,
-                "width": 1022.0,
-                "height": 720.0,
-                "path_id": 7736251300187116441
-            }
-        ]
-    }
+  {
+    "name": "bg_x",
+    "width": 512,
+    "height": 512,
+    "format": 56,
+    "path_id": -8556635666641176453,
+    "sprites": [
+      {
+        "name": "bg_4",
+        "x": 171.0,
+        "y": 1.0,
+        "width": 168.0,
+        "height": 510.0,
+        "path_id": -9129589624490902606
+      },
+      {
+        "name": "bg_5",
+        "x": 341.0,
+        "y": 45.0,
+        "width": 168.0,
+        "height": 210.0,
+        "path_id": -4692216110975580946
+      },
+      {
+        "name": "bg_2",
+        "x": 1.0,
+        "y": 1.0,
+        "width": 168.0,
+        "height": 510.0,
+        "path_id": 5129117526830897711
+      },
+      {
+        "name": "bg_3",
+        "x": 341.0,
+        "y": 301.0,
+        "width": 168.0,
+        "height": 210.0,
+        "path_id": 8564534684796303817
+      }
+    ]
+  },
+  {
+    "name": "bg",
+    "width": 1024,
+    "height": 1024,
+    "format": 56,
+    "path_id": -1848302546424191165,
+    "sprites": [
+      {
+        "name": "bg_1",
+        "x": 1.0,
+        "y": 1.0,
+        "width": 720.0,
+        "height": 258.0,
+        "path_id": -3411127056098763138
+      },
+      {
+        "name": "bg_0",
+        "x": 1.0,
+        "y": 303.0,
+        "width": 1022.0,
+        "height": 720.0,
+        "path_id": 7486118431221564872
+      }
+    ]
+  }
 ]
 ```
 
@@ -228,10 +244,13 @@ Available options:
 
 - [json](https://rubygems.org/gems/json)
 - [extlz4](https://rubygems.org/gems/extlz4)
+- [extlzma](https://rubygems.org/gems/extlzma)
 - [bin_utils](https://rubygems.org/gems/bin_utils)
 - [chunky_png](https://rubygems.org/gems/chunky_png)
 
 Mikunyan uses [oily_png](https://rubygems.org/gems/oily_png) instead of chunky_png if available.
+
+Note: extlz4 0.3 (current version) has a fatal bug because of LZ4 v1.9.0. In case of SIGSEGV in extlz4, you need to build extlz4 with the latest LZ4.
 
 ## Implementation in other languages
 
@@ -244,3 +263,11 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/Ishoti
 ## License
 
 The gem is available as open source under the terms of the [MIT License](http://opensource.org/licenses/MIT).
+
+## Acknowledgements
+
+This project contains following softwares.
+
+- [Unity's crunch/crnlib](https://github.com/Unity-Technologies/crunch) (zlib License)
+- [FP16](https://github.com/Maratyszcza/FP16/) (MIT License)
+- [endianness.h](https://gist.github.com/jtbr/7a43e6281e6cca353b33ee501421860c) (MIT License)
