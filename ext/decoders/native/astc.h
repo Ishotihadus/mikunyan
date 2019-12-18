@@ -3,6 +3,6 @@
 
 #include <stdint.h>
 
-void decode_astc(const uint8_t*, const int, const int, const int, const int, uint32_t*);
+int decode_astc(const uint8_t *, const long, const long, const int, const int, uint32_t *);
 
 #endif /* end of include guard: ASTC_H */

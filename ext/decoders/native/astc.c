@@ -1,106 +1,81 @@
 #include "astc.h"
-#include "fp16.h"
 #include <math.h>
 #include <ruby.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "color.h"
+#include "fp16.h"
 
 static const int BitReverseTable[] = {
-    0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0,
-    0x30, 0xB0, 0x70, 0xF0, 0x08, 0x88, 0x48, 0xC8, 0x28, 0xA8, 0x68, 0xE8,
-    0x18, 0x98, 0x58, 0xD8, 0x38, 0xB8, 0x78, 0xF8, 0x04, 0x84, 0x44, 0xC4,
-    0x24, 0xA4, 0x64, 0xE4, 0x14, 0x94, 0x54, 0xD4, 0x34, 0xB4, 0x74, 0xF4,
-    0x0C, 0x8C, 0x4C, 0xCC, 0x2C, 0xAC, 0x6C, 0xEC, 0x1C, 0x9C, 0x5C, 0xDC,
-    0x3C, 0xBC, 0x7C, 0xFC, 0x02, 0x82, 0x42, 0xC2, 0x22, 0xA2, 0x62, 0xE2,
-    0x12, 0x92, 0x52, 0xD2, 0x32, 0xB2, 0x72, 0xF2, 0x0A, 0x8A, 0x4A, 0xCA,
-    0x2A, 0xAA, 0x6A, 0xEA, 0x1A, 0x9A, 0x5A, 0xDA, 0x3A, 0xBA, 0x7A, 0xFA,
-    0x06, 0x86, 0x46, 0xC6, 0x26, 0xA6, 0x66, 0xE6, 0x16, 0x96, 0x56, 0xD6,
-    0x36, 0xB6, 0x76, 0xF6, 0x0E, 0x8E, 0x4E, 0xCE, 0x2E, 0xAE, 0x6E, 0xEE,
-    0x1E, 0x9E, 0x5E, 0xDE, 0x3E, 0xBE, 0x7E, 0xFE, 0x01, 0x81, 0x41, 0xC1,
-    0x21, 0xA1, 0x61, 0xE1, 0x11, 0x91, 0x51, 0xD1, 0x31, 0xB1, 0x71, 0xF1,
-    0x09, 0x89, 0x49, 0xC9, 0x29, 0xA9, 0x69, 0xE9, 0x19, 0x99, 0x59, 0xD9,
-    0x39, 0xB9, 0x79, 0xF9, 0x05, 0x85, 0x45, 0xC5, 0x25, 0xA5, 0x65, 0xE5,
-    0x15, 0x95, 0x55, 0xD5, 0x35, 0xB5, 0x75, 0xF5, 0x0D, 0x8D, 0x4D, 0xCD,
-    0x2D, 0xAD, 0x6D, 0xED, 0x1D, 0x9D, 0x5D, 0xDD, 0x3D, 0xBD, 0x7D, 0xFD,
-    0x03, 0x83, 0x43, 0xC3, 0x23, 0xA3, 0x63, 0xE3, 0x13, 0x93, 0x53, 0xD3,
-    0x33, 0xB3, 0x73, 0xF3, 0x0B, 0x8B, 0x4B, 0xCB, 0x2B, 0xAB, 0x6B, 0xEB,
-    0x1B, 0x9B, 0x5B, 0xDB, 0x3B, 0xBB, 0x7B, 0xFB, 0x07, 0x87, 0x47, 0xC7,
-    0x27, 0xA7, 0x67, 0xE7, 0x17, 0x97, 0x57, 0xD7, 0x37, 0xB7, 0x77, 0xF7,
-    0x0F, 0x8F, 0x4F, 0xCF, 0x2F, 0xAF, 0x6F, 0xEF, 0x1F, 0x9F, 0x5F, 0xDF,
-    0x3F, 0xBF, 0x7F, 0xFF
-};
+  0x00, 0x80, 0x40, 0xC0, 0x20, 0xA0, 0x60, 0xE0, 0x10, 0x90, 0x50, 0xD0, 0x30, 0xB0, 0x70, 0xF0, 0x08, 0x88, 0x48,
+  0xC8, 0x28, 0xA8, 0x68, 0xE8, 0x18, 0x98, 0x58, 0xD8, 0x38, 0xB8, 0x78, 0xF8, 0x04, 0x84, 0x44, 0xC4, 0x24, 0xA4,
+  0x64, 0xE4, 0x14, 0x94, 0x54, 0xD4, 0x34, 0xB4, 0x74, 0xF4, 0x0C, 0x8C, 0x4C, 0xCC, 0x2C, 0xAC, 0x6C, 0xEC, 0x1C,
+  0x9C, 0x5C, 0xDC, 0x3C, 0xBC, 0x7C, 0xFC, 0x02, 0x82, 0x42, 0xC2, 0x22, 0xA2, 0x62, 0xE2, 0x12, 0x92, 0x52, 0xD2,
+  0x32, 0xB2, 0x72, 0xF2, 0x0A, 0x8A, 0x4A, 0xCA, 0x2A, 0xAA, 0x6A, 0xEA, 0x1A, 0x9A, 0x5A, 0xDA, 0x3A, 0xBA, 0x7A,
+  0xFA, 0x06, 0x86, 0x46, 0xC6, 0x26, 0xA6, 0x66, 0xE6, 0x16, 0x96, 0x56, 0xD6, 0x36, 0xB6, 0x76, 0xF6, 0x0E, 0x8E,
+  0x4E, 0xCE, 0x2E, 0xAE, 0x6E, 0xEE, 0x1E, 0x9E, 0x5E, 0xDE, 0x3E, 0xBE, 0x7E, 0xFE, 0x01, 0x81, 0x41, 0xC1, 0x21,
+  0xA1, 0x61, 0xE1, 0x11, 0x91, 0x51, 0xD1, 0x31, 0xB1, 0x71, 0xF1, 0x09, 0x89, 0x49, 0xC9, 0x29, 0xA9, 0x69, 0xE9,
+  0x19, 0x99, 0x59, 0xD9, 0x39, 0xB9, 0x79, 0xF9, 0x05, 0x85, 0x45, 0xC5, 0x25, 0xA5, 0x65, 0xE5, 0x15, 0x95, 0x55,
+  0xD5, 0x35, 0xB5, 0x75, 0xF5, 0x0D, 0x8D, 0x4D, 0xCD, 0x2D, 0xAD, 0x6D, 0xED, 0x1D, 0x9D, 0x5D, 0xDD, 0x3D, 0xBD,
+  0x7D, 0xFD, 0x03, 0x83, 0x43, 0xC3, 0x23, 0xA3, 0x63, 0xE3, 0x13, 0x93, 0x53, 0xD3, 0x33, 0xB3, 0x73, 0xF3, 0x0B,
+  0x8B, 0x4B, 0xCB, 0x2B, 0xAB, 0x6B, 0xEB, 0x1B, 0x9B, 0x5B, 0xDB, 0x3B, 0xBB, 0x7B, 0xFB, 0x07, 0x87, 0x47, 0xC7,
+  0x27, 0xA7, 0x67, 0xE7, 0x17, 0x97, 0x57, 0xD7, 0x37, 0xB7, 0x77, 0xF7, 0x0F, 0x8F, 0x4F, 0xCF, 0x2F, 0xAF, 0x6F,
+  0xEF, 0x1F, 0x9F, 0x5F, 0xDF, 0x3F, 0xBF, 0x7F, 0xFF};
 
-static const int WeightPrecTableA[] = { 0, 0, 0, 3, 0, 5, 3, 0, 0, 0, 5, 3, 0, 5, 3, 0 };
-static const int WeightPrecTableB[] = { 0, 0, 1, 0, 2, 0, 1, 3, 0, 0, 1, 2, 4, 2, 3, 5 };
+static const int WeightPrecTableA[] = {0, 0, 0, 3, 0, 5, 3, 0, 0, 0, 5, 3, 0, 5, 3, 0};
+static const int WeightPrecTableB[] = {0, 0, 1, 0, 2, 0, 1, 3, 0, 0, 1, 2, 4, 2, 3, 5};
 
-static const int CemTableA[] = { 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 0, 0 };
-static const int CemTableB[] = { 8, 6, 5, 7, 5, 4, 6, 4, 3, 5, 3, 2, 4, 2, 1, 3, 1, 2, 1 };
+static const int CemTableA[] = {0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 5, 0, 3, 0, 0};
+static const int CemTableB[] = {8, 6, 5, 7, 5, 4, 6, 4, 3, 5, 3, 2, 4, 2, 1, 3, 1, 2, 1};
 
-static inline uint_fast32_t color(uint_fast8_t r, uint_fast8_t g, uint_fast8_t b, uint_fast8_t a)
-{
-#if BYTE_ORDER == LITTLE_ENDIAN
-    return r | g << 8 | b << 16 | a << 24;
-#else
-    return a | b << 8 | g << 16 | r << 24;
-#endif
-}
-
-static inline uint_fast8_t bit_reverse_u8(const uint_fast8_t c, const int bits)
-{
+static inline uint_fast8_t bit_reverse_u8(const uint_fast8_t c, const int bits) {
     return BitReverseTable[c] >> (8 - bits);
 }
 
-static inline uint_fast64_t bit_reverse_u64(const uint_fast64_t d, const int bits)
-{
-    uint_fast64_t ret = (uint_fast64_t)BitReverseTable[d & 0xff] << 56 | (uint_fast64_t)BitReverseTable[d >> 8 & 0xff] << 48 | (uint_fast64_t)BitReverseTable[d >> 16 & 0xff] << 40 | (uint_fast64_t)BitReverseTable[d >> 24 & 0xff] << 32 | (uint_fast32_t)BitReverseTable[d >> 32 & 0xff] << 24 | (uint_fast32_t)BitReverseTable[d >> 40 & 0xff] << 16 | (uint_fast16_t)BitReverseTable[d >> 48 & 0xff] << 8 | BitReverseTable[d >> 56 & 0xff];
+static inline uint_fast64_t bit_reverse_u64(const uint_fast64_t d, const int bits) {
+    uint_fast64_t ret = (uint_fast64_t)BitReverseTable[d & 0xff] << 56 |
+      (uint_fast64_t)BitReverseTable[d >> 8 & 0xff] << 48 | (uint_fast64_t)BitReverseTable[d >> 16 & 0xff] << 40 |
+      (uint_fast64_t)BitReverseTable[d >> 24 & 0xff] << 32 | (uint_fast32_t)BitReverseTable[d >> 32 & 0xff] << 24 |
+      (uint_fast32_t)BitReverseTable[d >> 40 & 0xff] << 16 | (uint_fast16_t)BitReverseTable[d >> 48 & 0xff] << 8 |
+      BitReverseTable[d >> 56 & 0xff];
     return ret >> (64 - bits);
 }
 
-static inline int getbits(const uint8_t* buf, const int bit, const int len)
-{
-    return (*(int*)(buf + bit / 8) >> (bit % 8)) & ((1 << len) - 1);
+static inline int getbits(const uint8_t *buf, const int bit, const int len) {
+    return (*(int *)(buf + bit / 8) >> (bit % 8)) & ((1 << len) - 1);
 }
 
-static inline uint_fast64_t getbits64(const uint8_t* buf, const int bit, const int len)
-{
+static inline uint_fast64_t getbits64(const uint8_t *buf, const int bit, const int len) {
     uint_fast64_t mask = len == 64 ? 0xffffffffffffffff : (1ull << len) - 1;
     if (len < 1)
         return 0;
     else if (bit >= 64)
-        return (*(uint_fast64_t*)(buf + 8)) >> (bit - 64) & mask;
+        return (*(uint_fast64_t *)(buf + 8)) >> (bit - 64) & mask;
     else if (bit <= 0)
-        return (*(uint_fast64_t*)buf) << -bit & mask;
+        return (*(uint_fast64_t *)buf) << -bit & mask;
     else if (bit + len <= 64)
-        return (*(uint_fast64_t*)buf) >> bit & mask;
+        return (*(uint_fast64_t *)buf) >> bit & mask;
     else
-        return ((*(uint_fast64_t*)buf) >> bit | *(uint_fast64_t*)(buf + 8) << (64 - bit)) & mask;
+        return ((*(uint_fast64_t *)buf) >> bit | *(uint_fast64_t *)(buf + 8) << (64 - bit)) & mask;
 }
 
-static inline uint16_t u8ptr_to_u16(const uint8_t* ptr)
-{
-#if BYTE_ORDER == LITTLE_ENDIAN
-    return *(uint16_t*)ptr;
-#else
-    return ptr[0] | ptr[1] << 8;
-#endif
+static inline uint16_t u8ptr_to_u16(const uint8_t *ptr) {
+    return lton16(*(uint16_t *)ptr);
 }
 
-static inline uint_fast8_t clamp(const int n)
-{
+static inline uint_fast8_t clamp(const int n) {
     return n < 0 ? 0 : n > 255 ? 255 : n;
 }
 
-static inline void bit_transfer_signed(int* a, int* b)
-{
+static inline void bit_transfer_signed(int *a, int *b) {
     *b = (*b >> 1) | (*a & 0x80);
     *a = (*a >> 1) & 0x3f;
     if (*a & 0x20)
         *a -= 0x40;
 }
 
-static inline void set_endpoint(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2)
-{
+static inline void set_endpoint(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
     endpoint[0] = r1;
     endpoint[1] = g1;
     endpoint[2] = b1;
@@ -111,8 +86,7 @@ static inline void set_endpoint(int endpoint[8], int r1, int g1, int b1, int a1,
     endpoint[7] = a2;
 }
 
-static inline void set_endpoint_clamp(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2)
-{
+static inline void set_endpoint_clamp(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
     endpoint[0] = clamp(r1);
     endpoint[1] = clamp(g1);
     endpoint[2] = clamp(b1);
@@ -123,8 +97,7 @@ static inline void set_endpoint_clamp(int endpoint[8], int r1, int g1, int b1, i
     endpoint[7] = clamp(a2);
 }
 
-static inline void set_endpoint_blue(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2)
-{
+static inline void set_endpoint_blue(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
     endpoint[0] = (r1 + b1) >> 1;
     endpoint[1] = (g1 + b1) >> 1;
     endpoint[2] = b1;
@@ -135,8 +108,8 @@ static inline void set_endpoint_blue(int endpoint[8], int r1, int g1, int b1, in
     endpoint[7] = a2;
 }
 
-static inline void set_endpoint_blue_clamp(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2)
-{
+static inline void set_endpoint_blue_clamp(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2,
+                                           int a2) {
     endpoint[0] = clamp((r1 + b1) >> 1);
     endpoint[1] = clamp((g1 + b1) >> 1);
     endpoint[2] = clamp(b1);
@@ -147,13 +120,11 @@ static inline void set_endpoint_blue_clamp(int endpoint[8], int r1, int g1, int 
     endpoint[7] = clamp(a2);
 }
 
-static inline uint_fast16_t clamp_hdr(const int n)
-{
+static inline uint_fast16_t clamp_hdr(const int n) {
     return n < 0 ? 0 : n > 0xfff ? 0xfff : n;
 }
 
-static inline void set_endpoint_hdr(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2)
-{
+static inline void set_endpoint_hdr(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2) {
     endpoint[0] = r1;
     endpoint[1] = g1;
     endpoint[2] = b1;
@@ -164,8 +135,8 @@ static inline void set_endpoint_hdr(int endpoint[8], int r1, int g1, int b1, int
     endpoint[7] = a2;
 }
 
-static inline void set_endpoint_hdr_clamp(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2, int a2)
-{
+static inline void set_endpoint_hdr_clamp(int endpoint[8], int r1, int g1, int b1, int a1, int r2, int g2, int b2,
+                                          int a2) {
     endpoint[0] = clamp_hdr(r1);
     endpoint[1] = clamp_hdr(g1);
     endpoint[2] = clamp_hdr(b1);
@@ -178,13 +149,11 @@ static inline void set_endpoint_hdr_clamp(int endpoint[8], int r1, int g1, int b
 
 typedef uint_fast8_t (*t_select_folor_func_ptr)(int, int, int);
 
-static uint_fast8_t select_color(int v0, int v1, int weight)
-{
+static uint_fast8_t select_color(int v0, int v1, int weight) {
     return ((((v0 << 8 | v0) * (64 - weight) + (v1 << 8 | v1) * weight + 32) >> 6) * 255 + 32768) / 65536;
 }
 
-static uint_fast8_t select_color_hdr(int v0, int v1, int weight)
-{
+static uint_fast8_t select_color_hdr(int v0, int v1, int weight) {
     uint16_t c = ((v0 << 4) * (64 - weight) + (v1 << 4) * weight + 32) >> 6;
     uint16_t m = c & 0x7ff;
     if (m < 512)
@@ -197,8 +166,7 @@ static uint_fast8_t select_color_hdr(int v0, int v1, int weight)
     return isfinite(f) ? clamp(roundf(f * 255)) : 255;
 }
 
-static inline uint8_t f32_to_u8(const float f)
-{
+static inline uint8_t f32_to_u8(const float f) {
     float c = roundf(f * 255);
     if (c < 0)
         return 0;
@@ -208,16 +176,8 @@ static inline uint8_t f32_to_u8(const float f)
         return c;
 }
 
-static inline uint8_t f16ptr_to_u8(const uint8_t* ptr)
-{
-    const uint16_t c =
-#if BYTE_ORDER == LITTLE_ENDIAN
-        *(uint16_t*)ptr
-#else
-        ptr[0] | ptr[1] << 8
-#endif
-        ;
-    return f32_to_u8(fp16_ieee_to_fp32_value(c));
+static inline uint8_t f16ptr_to_u8(const uint8_t *ptr) {
+    return f32_to_u8(fp16_ieee_to_fp32_value(lton16(*(uint16_t *)ptr)));
 }
 
 typedef struct {
@@ -229,10 +189,10 @@ typedef struct {
     int dual_plane;
     int plane_selector;
     int weight_range;
-    int weight_num; // max: 120
+    int weight_num;  // max: 120
     int cem[4];
     int cem_range;
-    int endpoint_value_num; // max: 32
+    int endpoint_value_num;  // max: 32
     int endpoints[4][8];
     int weights[144][2];
     int partition[144];
@@ -243,87 +203,59 @@ typedef struct {
     int nonbits;
 } IntSeqData;
 
-void decode_intseq(const uint8_t* buf, int offset, const int a, const int b, const int count, const int reverse, IntSeqData* out)
-{
-    static int mt[] = { 0, 2, 4, 5, 7 };
-    static int mq[] = { 0, 3, 5 };
+void decode_intseq(const uint8_t *buf, int offset, const int a, const int b, const int count, const int reverse,
+                   IntSeqData *out) {
+    static int mt[] = {0, 2, 4, 5, 7};
+    static int mq[] = {0, 3, 5};
     static int TritsTable[5][256] = {
-        { 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1,
-            0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2,
-            0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 1, 0, 1, 2, 0, 0, 1, 2, 1,
-            0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2,
-            0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1,
-            0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2,
-            0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 0, 0, 1, 2, 1,
-            0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 1,
-            0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1,
-            0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2,
-            0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2 },
-        { 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1,
-            2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0,
-            0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0,
-            2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 0,
-            0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1,
-            2, 2, 2, 1, 2, 2, 2, 0, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0,
-            0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0,
-            2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 1,
-            0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1,
-            2, 2, 2, 1, 2, 2, 2, 1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0,
-            0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1 },
-        { 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2,
-            1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2,
-            1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2,
-            0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2,
-            0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2,
-            1, 1, 1, 2, 2, 2, 2, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2,
-            1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2,
-            0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2,
-            0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2,
-            1, 1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2,
-            1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 2 },
-        { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2 },
-        { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2,
-            1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 }
-    };
+      {0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 0, 0,
+       1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 1, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1,
+       2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2,
+       2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0,
+       0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0,
+       1, 2, 2, 0, 1, 2, 1, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1,
+       2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2, 0, 1, 2, 0, 0, 1, 2, 1, 0, 1, 2, 2, 0, 1, 2, 2},
+      {0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+       1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2,
+       2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 0, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2,
+       0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 0, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1,
+       1, 1, 1, 1, 2, 2, 2, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2,
+       2, 2, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2,
+       2, 1, 0, 0, 0, 0, 1, 1, 1, 0, 2, 2, 2, 0, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1},
+      {0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0,
+       0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0,
+       0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2,
+       2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2,
+       1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1,
+       1, 1, 2, 1, 1, 1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1,
+       1, 2, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 2},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2},
+      {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+       1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2,
+       2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}};
     static int QuintsTable[3][128] = {
-        { 0, 1, 2, 3, 4, 0, 4, 4, 0, 1, 2, 3, 4, 1, 4, 4, 0, 1, 2, 3, 4, 2,
-            4, 4, 0, 1, 2, 3, 4, 3, 4, 4, 0, 1, 2, 3, 4, 0, 4, 0, 0, 1, 2, 3,
-            4, 1, 4, 1, 0, 1, 2, 3, 4, 2, 4, 2, 0, 1, 2, 3, 4, 3, 4, 3, 0, 1,
-            2, 3, 4, 0, 2, 3, 0, 1, 2, 3, 4, 1, 2, 3, 0, 1, 2, 3, 4, 2, 2, 3,
-            0, 1, 2, 3, 4, 3, 2, 3, 0, 1, 2, 3, 4, 0, 0, 1, 0, 1, 2, 3, 4, 1,
-            0, 1, 0, 1, 2, 3, 4, 2, 0, 1, 0, 1, 2, 3, 4, 3, 0, 1 },
-        { 0, 0, 0, 0, 0, 4, 4, 4, 1, 1, 1, 1, 1, 4, 4, 4, 2, 2, 2, 2, 2, 4,
-            4, 4, 3, 3, 3, 3, 3, 4, 4, 4, 0, 0, 0, 0, 0, 4, 0, 4, 1, 1, 1, 1,
-            1, 4, 1, 4, 2, 2, 2, 2, 2, 4, 2, 4, 3, 3, 3, 3, 3, 4, 3, 4, 0, 0,
-            0, 0, 0, 4, 0, 0, 1, 1, 1, 1, 1, 4, 1, 1, 2, 2, 2, 2, 2, 4, 2, 2,
-            3, 3, 3, 3, 3, 4, 3, 3, 0, 0, 0, 0, 0, 4, 0, 0, 1, 1, 1, 1, 1, 4,
-            1, 1, 2, 2, 2, 2, 2, 4, 2, 2, 3, 3, 3, 3, 3, 4, 3, 3 },
-        { 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1, 4, 0, 0, 0, 0, 0, 0,
-            2, 4, 0, 0, 0, 0, 0, 0, 3, 4, 1, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 1,
-            1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 4, 4, 2, 2,
-            2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2, 2, 4, 4,
-            2, 2, 2, 2, 2, 2, 4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 3, 3, 3, 3, 3, 3,
-            4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 3, 3, 3, 3, 3, 3, 4, 4 }
-    };
+      {0, 1, 2, 3, 4, 0, 4, 4, 0, 1, 2, 3, 4, 1, 4, 4, 0, 1, 2, 3, 4, 2, 4, 4, 0, 1, 2, 3, 4, 3, 4, 4,
+       0, 1, 2, 3, 4, 0, 4, 0, 0, 1, 2, 3, 4, 1, 4, 1, 0, 1, 2, 3, 4, 2, 4, 2, 0, 1, 2, 3, 4, 3, 4, 3,
+       0, 1, 2, 3, 4, 0, 2, 3, 0, 1, 2, 3, 4, 1, 2, 3, 0, 1, 2, 3, 4, 2, 2, 3, 0, 1, 2, 3, 4, 3, 2, 3,
+       0, 1, 2, 3, 4, 0, 0, 1, 0, 1, 2, 3, 4, 1, 0, 1, 0, 1, 2, 3, 4, 2, 0, 1, 0, 1, 2, 3, 4, 3, 0, 1},
+      {0, 0, 0, 0, 0, 4, 4, 4, 1, 1, 1, 1, 1, 4, 4, 4, 2, 2, 2, 2, 2, 4, 4, 4, 3, 3, 3, 3, 3, 4, 4, 4,
+       0, 0, 0, 0, 0, 4, 0, 4, 1, 1, 1, 1, 1, 4, 1, 4, 2, 2, 2, 2, 2, 4, 2, 4, 3, 3, 3, 3, 3, 4, 3, 4,
+       0, 0, 0, 0, 0, 4, 0, 0, 1, 1, 1, 1, 1, 4, 1, 1, 2, 2, 2, 2, 2, 4, 2, 2, 3, 3, 3, 3, 3, 4, 3, 3,
+       0, 0, 0, 0, 0, 4, 0, 0, 1, 1, 1, 1, 1, 4, 1, 1, 2, 2, 2, 2, 2, 4, 2, 2, 3, 3, 3, 3, 3, 4, 3, 3},
+      {0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1, 4, 0, 0, 0, 0, 0, 0, 2, 4, 0, 0, 0, 0, 0, 0, 3, 4,
+       1, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 4, 4, 1, 1, 1, 1, 1, 1, 4, 4,
+       2, 2, 2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2, 2, 4, 4,
+       3, 3, 3, 3, 3, 3, 4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 3, 3, 3, 3, 3, 3, 4, 4}};
 
     if (count <= 0)
         return;
@@ -341,17 +273,18 @@ void decode_intseq(const uint8_t* buf, int offset, const int a, const int b, con
             for (int i = 0, p = offset; i < block_count; i++, p -= block_size) {
                 int now_size = (i < block_count - 1) ? block_size : last_block_size;
                 uint_fast64_t d = bit_reverse_u64(getbits64(buf, p - now_size, now_size), now_size);
-                int x = (d >> b & 3) | (d >> b * 2 & 0xc) | (d >> b * 3 & 0x10) | (d >> b * 4 & 0x60) | (d >> b * 5 & 0x80);
+                int x =
+                  (d >> b & 3) | (d >> b * 2 & 0xc) | (d >> b * 3 & 0x10) | (d >> b * 4 & 0x60) | (d >> b * 5 & 0x80);
                 for (int j = 0; j < 5 && n < count; j++, n++)
-                    out[n] = (IntSeqData){ d >> (mt[j] + b * j) & mask, TritsTable[j][x] };
+                    out[n] = (IntSeqData){d >> (mt[j] + b * j) & mask, TritsTable[j][x]};
             }
         } else {
             for (int i = 0, p = offset; i < block_count; i++, p += block_size) {
-                uint_fast64_t d = getbits64(
-                    buf, p, (i < block_count - 1) ? block_size : last_block_size);
-                int x = (d >> b & 3) | (d >> b * 2 & 0xc) | (d >> b * 3 & 0x10) | (d >> b * 4 & 0x60) | (d >> b * 5 & 0x80);
+                uint_fast64_t d = getbits64(buf, p, (i < block_count - 1) ? block_size : last_block_size);
+                int x =
+                  (d >> b & 3) | (d >> b * 2 & 0xc) | (d >> b * 3 & 0x10) | (d >> b * 4 & 0x60) | (d >> b * 5 & 0x80);
                 for (int j = 0; j < 5 && n < count; j++, n++)
-                    out[n] = (IntSeqData){ d >> (mt[j] + b * j) & mask, TritsTable[j][x] };
+                    out[n] = (IntSeqData){d >> (mt[j] + b * j) & mask, TritsTable[j][x]};
             }
         }
     } else if (a == 5) {
@@ -367,29 +300,27 @@ void decode_intseq(const uint8_t* buf, int offset, const int a, const int b, con
                 uint_fast64_t d = bit_reverse_u64(getbits64(buf, p - now_size, now_size), now_size);
                 int x = (d >> b & 7) | (d >> b * 2 & 0x18) | (d >> b * 3 & 0x60);
                 for (int j = 0; j < 3 && n < count; j++, n++)
-                    out[n] = (IntSeqData){ d >> (mq[j] + b * j) & mask, QuintsTable[j][x] };
+                    out[n] = (IntSeqData){d >> (mq[j] + b * j) & mask, QuintsTable[j][x]};
             }
         } else {
             for (int i = 0, p = offset; i < block_count; i++, p += block_size) {
-                uint_fast64_t d = getbits64(
-                    buf, p, (i < block_count - 1) ? block_size : last_block_size);
+                uint_fast64_t d = getbits64(buf, p, (i < block_count - 1) ? block_size : last_block_size);
                 int x = (d >> b & 7) | (d >> b * 2 & 0x18) | (d >> b * 3 & 0x60);
                 for (int j = 0; j < 3 && n < count; j++, n++)
-                    out[n] = (IntSeqData){ d >> (mq[j] + b * j) & mask, QuintsTable[j][x] };
+                    out[n] = (IntSeqData){d >> (mq[j] + b * j) & mask, QuintsTable[j][x]};
             }
         }
     } else {
         if (reverse)
             for (int p = offset - b; n < count; n++, p -= b)
-                out[n] = (IntSeqData){ bit_reverse_u8(getbits(buf, p, b), b), 0 };
+                out[n] = (IntSeqData){bit_reverse_u8(getbits(buf, p, b), b), 0};
         else
             for (int p = offset; n < count; n++, p += b)
-                out[n] = (IntSeqData){ getbits(buf, p, b), 0 };
+                out[n] = (IntSeqData){getbits(buf, p, b), 0};
     }
 }
 
-void decode_block_params(const uint8_t* buf, BlockData* block_data)
-{
+void decode_block_params(const uint8_t *buf, BlockData *block_data) {
     block_data->dual_plane = !!(buf[1] & 4);
     block_data->weight_range = (buf[0] >> 4 & 1) | (buf[1] << 2 & 8);
 
@@ -454,10 +385,12 @@ void decode_block_params(const uint8_t* buf, BlockData* block_data)
 
     switch (WeightPrecTableA[block_data->weight_range]) {
     case 3:
-        weight_bits = block_data->weight_num * WeightPrecTableB[block_data->weight_range] + (block_data->weight_num * 8 + 4) / 5;
+        weight_bits =
+          block_data->weight_num * WeightPrecTableB[block_data->weight_range] + (block_data->weight_num * 8 + 4) / 5;
         break;
     case 5:
-        weight_bits = block_data->weight_num * WeightPrecTableB[block_data->weight_range] + (block_data->weight_num * 7 + 2) / 3;
+        weight_bits =
+          block_data->weight_num * WeightPrecTableB[block_data->weight_range] + (block_data->weight_num * 7 + 2) / 3;
         break;
     default:
         weight_bits = block_data->weight_num * WeightPrecTableB[block_data->weight_range];
@@ -498,7 +431,8 @@ void decode_block_params(const uint8_t* buf, BlockData* block_data)
 
     if (block_data->dual_plane) {
         config_bits += 2;
-        block_data->plane_selector = getbits(buf, cem_base ? 130 - weight_bits - block_data->part_num * 3 : 126 - weight_bits, 2);
+        block_data->plane_selector =
+          getbits(buf, cem_base ? 130 - weight_bits - block_data->part_num * 3 : 126 - weight_bits, 2);
     }
 
     int remain_bits = 128 - config_bits - weight_bits;
@@ -510,10 +444,12 @@ void decode_block_params(const uint8_t* buf, BlockData* block_data)
     for (int i = 0, endpoint_bits; i < (int)(sizeof(CemTableA) / sizeof(int)); i++) {
         switch (CemTableA[i]) {
         case 3:
-            endpoint_bits = block_data->endpoint_value_num * CemTableB[i] + (block_data->endpoint_value_num * 8 + 4) / 5;
+            endpoint_bits =
+              block_data->endpoint_value_num * CemTableB[i] + (block_data->endpoint_value_num * 8 + 4) / 5;
             break;
         case 5:
-            endpoint_bits = block_data->endpoint_value_num * CemTableB[i] + (block_data->endpoint_value_num * 7 + 2) / 3;
+            endpoint_bits =
+              block_data->endpoint_value_num * CemTableB[i] + (block_data->endpoint_value_num * 7 + 2) / 3;
             break;
         default:
             endpoint_bits = block_data->endpoint_value_num * CemTableB[i];
@@ -526,8 +462,7 @@ void decode_block_params(const uint8_t* buf, BlockData* block_data)
     }
 }
 
-void decode_endpoints_hdr7(int* endpoints, int* v)
-{
+void decode_endpoints_hdr7(int *endpoints, int *v) {
     int modeval = (v[2] >> 4 & 0x8) | (v[1] >> 5 & 0x4) | (v[0] >> 6);
     int major_component, mode;
     if ((modeval & 0xc) != 0xc) {
@@ -540,7 +475,7 @@ void decode_endpoints_hdr7(int* endpoints, int* v)
         major_component = 0;
         mode = 5;
     }
-    int c[] = { v[0] & 0x3f, v[1] & 0x1f, v[2] & 0x1f, v[3] & 0x1f };
+    int c[] = {v[0] & 0x3f, v[1] & 0x1f, v[2] & 0x1f, v[3] & 0x1f};
 
     switch (mode) {
     case 0:
@@ -621,11 +556,11 @@ void decode_endpoints_hdr7(int* endpoints, int* v)
         set_endpoint_hdr_clamp(endpoints, c[0] - c[3], c[1] - c[3], c[2] - c[3], 0x780, c[0], c[1], c[2], 0x780);
 }
 
-void decode_endpoints_hdr11(int* endpoints, int* v, int alpha1, int alpha2)
-{
+void decode_endpoints_hdr11(int *endpoints, int *v, int alpha1, int alpha2) {
     int major_component = (v[4] >> 7) | (v[5] >> 6 & 2);
     if (major_component == 3) {
-        set_endpoint_hdr(endpoints, v[0] << 4, v[2] << 4, v[4] << 5 & 0xfe0, alpha1, v[1] << 4, v[3] << 4, v[5] << 5 & 0xfe0, alpha2);
+        set_endpoint_hdr(endpoints, v[0] << 4, v[2] << 4, v[4] << 5 & 0xfe0, alpha1, v[1] << 4, v[3] << 4,
+                         v[5] << 5 & 0xfe0, alpha2);
         return;
     }
     int mode = (v[1] >> 7) | (v[2] >> 6 & 2) | (v[3] >> 5 & 4);
@@ -726,20 +661,23 @@ void decode_endpoints_hdr11(int* endpoints, int* v, int alpha1, int alpha2)
     vd1 *= mult;
 
     if (major_component == 1)
-        set_endpoint_hdr_clamp(endpoints, va - vb0 - vc - vd0, va - vc, va - vb1 - vc - vd1, alpha1, va - vb0, va, va - vb1, alpha2);
+        set_endpoint_hdr_clamp(endpoints, va - vb0 - vc - vd0, va - vc, va - vb1 - vc - vd1, alpha1, va - vb0, va,
+                               va - vb1, alpha2);
     else if (major_component == 2)
-        set_endpoint_hdr_clamp(endpoints, va - vb1 - vc - vd1, va - vb0 - vc - vd0, va - vc, alpha1, va - vb1, va - vb0, va, alpha2);
+        set_endpoint_hdr_clamp(endpoints, va - vb1 - vc - vd1, va - vb0 - vc - vd0, va - vc, alpha1, va - vb1, va - vb0,
+                               va, alpha2);
     else
-        set_endpoint_hdr_clamp(endpoints, va - vc, va - vb0 - vc - vd0, va - vb1 - vc - vd1, alpha1, va, va - vb0, va - vb1, alpha2);
+        set_endpoint_hdr_clamp(endpoints, va - vc, va - vb0 - vc - vd0, va - vb1 - vc - vd1, alpha1, va, va - vb0,
+                               va - vb1, alpha2);
 }
 
-void decode_endpoints(const uint8_t* buf, BlockData* data)
-{
-    static const int TritsTable[] = { 0, 204, 93, 44, 22, 11, 5 };
-    static const int QuintsTable[] = { 0, 113, 54, 26, 13, 6 };
+void decode_endpoints(const uint8_t *buf, BlockData *data) {
+    static const int TritsTable[] = {0, 204, 93, 44, 22, 11, 5};
+    static const int QuintsTable[] = {0, 113, 54, 26, 13, 6};
     IntSeqData seq[32];
     int ev[32];
-    decode_intseq(buf, data->part_num == 1 ? 17 : 29, CemTableA[data->cem_range], CemTableB[data->cem_range], data->endpoint_value_num, 0, seq);
+    decode_intseq(buf, data->part_num == 1 ? 17 : 29, CemTableA[data->cem_range], CemTableB[data->cem_range],
+                  data->endpoint_value_num, 0, seq);
 
     switch (CemTableA[data->cem_range]) {
     case 3:
@@ -830,7 +768,7 @@ void decode_endpoints(const uint8_t* buf, BlockData* data)
         }
     }
 
-    int* v = ev;
+    int *v = ev;
     for (int cem = 0; cem < data->part_num; v += (data->cem[cem] / 4 + 1) * 2, cem++) {
         switch (data->cem[cem]) {
         case 0:
@@ -874,7 +812,8 @@ void decode_endpoints(const uint8_t* buf, BlockData* data)
             set_endpoint_clamp(data->endpoints[cem], v[0], v[0], v[0], v[2], v[1], v[1], v[1], v[2] + v[3]);
             break;
         case 6:
-            set_endpoint(data->endpoints[cem], v[0] * v[3] >> 8, v[1] * v[3] >> 8, v[2] * v[3] >> 8, 255, v[0], v[1], v[2], 255);
+            set_endpoint(data->endpoints[cem], v[0] * v[3] >> 8, v[1] * v[3] >> 8, v[2] * v[3] >> 8, 255, v[0], v[1],
+                         v[2], 255);
             break;
         case 7:
             decode_endpoints_hdr7(data->endpoints[cem], v);
@@ -890,12 +829,15 @@ void decode_endpoints(const uint8_t* buf, BlockData* data)
             bit_transfer_signed(&v[3], &v[2]);
             bit_transfer_signed(&v[5], &v[4]);
             if (v[1] + v[3] + v[5] >= 0)
-                set_endpoint_clamp(data->endpoints[cem], v[0], v[2], v[4], 255, v[0] + v[1], v[2] + v[3], v[4] + v[5], 255);
+                set_endpoint_clamp(data->endpoints[cem], v[0], v[2], v[4], 255, v[0] + v[1], v[2] + v[3], v[4] + v[5],
+                                   255);
             else
-                set_endpoint_blue_clamp(data->endpoints[cem], v[0] + v[1], v[2] + v[3], v[4] + v[5], 255, v[0], v[2], v[4], 255);
+                set_endpoint_blue_clamp(data->endpoints[cem], v[0] + v[1], v[2] + v[3], v[4] + v[5], 255, v[0], v[2],
+                                        v[4], 255);
             break;
         case 10:
-            set_endpoint(data->endpoints[cem], v[0] * v[3] >> 8, v[1] * v[3] >> 8, v[2] * v[3] >> 8, v[4], v[0], v[1], v[2], v[5]);
+            set_endpoint(data->endpoints[cem], v[0] * v[3] >> 8, v[1] * v[3] >> 8, v[2] * v[3] >> 8, v[4], v[0], v[1],
+                         v[2], v[5]);
             break;
         case 11:
             decode_endpoints_hdr11(data->endpoints[cem], v, 0x780, 0x780);
@@ -912,9 +854,11 @@ void decode_endpoints(const uint8_t* buf, BlockData* data)
             bit_transfer_signed(&v[5], &v[4]);
             bit_transfer_signed(&v[7], &v[6]);
             if (v[1] + v[3] + v[5] >= 0)
-                set_endpoint_clamp(data->endpoints[cem], v[0], v[2], v[4], v[6], v[0] + v[1], v[2] + v[3], v[4] + v[5], v[6] + v[7]);
+                set_endpoint_clamp(data->endpoints[cem], v[0], v[2], v[4], v[6], v[0] + v[1], v[2] + v[3], v[4] + v[5],
+                                   v[6] + v[7]);
             else
-                set_endpoint_blue_clamp(data->endpoints[cem], v[0] + v[1], v[2] + v[3], v[4] + v[5], v[6] + v[7], v[0], v[2], v[4], v[6]);
+                set_endpoint_blue_clamp(data->endpoints[cem], v[0] + v[1], v[2] + v[3], v[4] + v[5], v[6] + v[7], v[0],
+                                        v[2], v[4], v[6]);
             break;
         case 14:
             decode_endpoints_hdr11(data->endpoints[cem], v, v[6], v[7]);
@@ -939,12 +883,11 @@ void decode_endpoints(const uint8_t* buf, BlockData* data)
     }
 }
 
-void decode_weights(const uint8_t* buf, BlockData* data)
-{
+void decode_weights(const uint8_t *buf, BlockData *data) {
     IntSeqData seq[128];
     int wv[128] = {};
-    decode_intseq(buf, 128, WeightPrecTableA[data->weight_range],
-        WeightPrecTableB[data->weight_range], data->weight_num, 1, seq);
+    decode_intseq(buf, 128, WeightPrecTableA[data->weight_range], WeightPrecTableB[data->weight_range],
+                  data->weight_num, 1, seq);
 
     if (WeightPrecTableA[data->weight_range] == 0) {
         switch (WeightPrecTableB[data->weight_range]) {
@@ -1045,10 +988,9 @@ void decode_weights(const uint8_t* buf, BlockData* data)
     }
 }
 
-void select_partition(const uint8_t* buf, BlockData* data)
-{
+void select_partition(const uint8_t *buf, BlockData *data) {
     int small_block = data->bw * data->bh < 31;
-    int seed = (*(int*)buf >> 13 & 0x3ff) | (data->part_num - 1) << 10;
+    int seed = (*(int *)buf >> 13 & 0x3ff) | (data->part_num - 1) << 10;
 
     uint32_t rnum = seed;
     rnum ^= rnum >> 15;
@@ -1068,7 +1010,7 @@ void select_partition(const uint8_t* buf, BlockData* data)
         seeds[i] *= seeds[i];
     }
 
-    int sh[2] = { seed & 2 ? 4 : 5, data->part_num == 3 ? 6 : 5 };
+    int sh[2] = {seed & 2 ? 4 : 5, data->part_num == 3 ? 6 : 5};
 
     if (seed & 1)
         for (int i = 0; i < 8; i++)
@@ -1102,63 +1044,73 @@ void select_partition(const uint8_t* buf, BlockData* data)
     }
 }
 
-void applicate_color(const BlockData* data, uint32_t* outbuf)
-{
+void applicate_color(const BlockData *data, uint32_t *outbuf) {
     static const t_select_folor_func_ptr FuncTableC[] = {
-        select_color, select_color, select_color_hdr, select_color_hdr,
-        select_color, select_color, select_color, select_color_hdr,
-        select_color, select_color, select_color, select_color_hdr,
-        select_color, select_color, select_color_hdr, select_color_hdr
-    };
+      select_color, select_color,     select_color_hdr, select_color_hdr, select_color, select_color,
+      select_color, select_color_hdr, select_color,     select_color,     select_color, select_color_hdr,
+      select_color, select_color,     select_color_hdr, select_color_hdr};
     static const t_select_folor_func_ptr FuncTableA[] = {
-        select_color, select_color, select_color_hdr, select_color_hdr,
-        select_color, select_color, select_color, select_color_hdr,
-        select_color, select_color, select_color, select_color_hdr,
-        select_color, select_color, select_color, select_color_hdr
-    };
+      select_color, select_color,     select_color_hdr, select_color_hdr, select_color, select_color,
+      select_color, select_color_hdr, select_color,     select_color,     select_color, select_color_hdr,
+      select_color, select_color,     select_color,     select_color_hdr};
     if (data->dual_plane) {
-        int ps[] = { 0, 0, 0, 0 };
+        int ps[] = {0, 0, 0, 0};
         ps[data->plane_selector] = 1;
         if (data->part_num > 1) {
             for (int i = 0; i < data->bw * data->bh; i++) {
                 int p = data->partition[i];
-                uint_fast8_t r = FuncTableC[data->cem[p]](data->endpoints[p][0], data->endpoints[p][4], data->weights[i][ps[0]]);
-                uint_fast8_t g = FuncTableC[data->cem[p]](data->endpoints[p][1], data->endpoints[p][5], data->weights[i][ps[1]]);
-                uint_fast8_t b = FuncTableC[data->cem[p]](data->endpoints[p][2], data->endpoints[p][6], data->weights[i][ps[2]]);
-                uint_fast8_t a = FuncTableA[data->cem[p]](data->endpoints[p][3], data->endpoints[p][7], data->weights[i][ps[3]]);
+                uint_fast8_t r =
+                  FuncTableC[data->cem[p]](data->endpoints[p][0], data->endpoints[p][4], data->weights[i][ps[0]]);
+                uint_fast8_t g =
+                  FuncTableC[data->cem[p]](data->endpoints[p][1], data->endpoints[p][5], data->weights[i][ps[1]]);
+                uint_fast8_t b =
+                  FuncTableC[data->cem[p]](data->endpoints[p][2], data->endpoints[p][6], data->weights[i][ps[2]]);
+                uint_fast8_t a =
+                  FuncTableA[data->cem[p]](data->endpoints[p][3], data->endpoints[p][7], data->weights[i][ps[3]]);
                 outbuf[i] = color(r, g, b, a);
             }
         } else {
             for (int i = 0; i < data->bw * data->bh; i++) {
-                uint_fast8_t r = FuncTableC[data->cem[0]](data->endpoints[0][0], data->endpoints[0][4], data->weights[i][ps[0]]);
-                uint_fast8_t g = FuncTableC[data->cem[0]](data->endpoints[0][1], data->endpoints[0][5], data->weights[i][ps[1]]);
-                uint_fast8_t b = FuncTableC[data->cem[0]](data->endpoints[0][2], data->endpoints[0][6], data->weights[i][ps[2]]);
-                uint_fast8_t a = FuncTableA[data->cem[0]](data->endpoints[0][3], data->endpoints[0][7], data->weights[i][ps[3]]);
+                uint_fast8_t r =
+                  FuncTableC[data->cem[0]](data->endpoints[0][0], data->endpoints[0][4], data->weights[i][ps[0]]);
+                uint_fast8_t g =
+                  FuncTableC[data->cem[0]](data->endpoints[0][1], data->endpoints[0][5], data->weights[i][ps[1]]);
+                uint_fast8_t b =
+                  FuncTableC[data->cem[0]](data->endpoints[0][2], data->endpoints[0][6], data->weights[i][ps[2]]);
+                uint_fast8_t a =
+                  FuncTableA[data->cem[0]](data->endpoints[0][3], data->endpoints[0][7], data->weights[i][ps[3]]);
                 outbuf[i] = color(r, g, b, a);
             }
         }
     } else if (data->part_num > 1) {
         for (int i = 0; i < data->bw * data->bh; i++) {
             int p = data->partition[i];
-            uint_fast8_t r = FuncTableC[data->cem[p]](data->endpoints[p][0], data->endpoints[p][4], data->weights[i][0]);
-            uint_fast8_t g = FuncTableC[data->cem[p]](data->endpoints[p][1], data->endpoints[p][5], data->weights[i][0]);
-            uint_fast8_t b = FuncTableC[data->cem[p]](data->endpoints[p][2], data->endpoints[p][6], data->weights[i][0]);
-            uint_fast8_t a = FuncTableA[data->cem[p]](data->endpoints[p][3], data->endpoints[p][7], data->weights[i][0]);
+            uint_fast8_t r =
+              FuncTableC[data->cem[p]](data->endpoints[p][0], data->endpoints[p][4], data->weights[i][0]);
+            uint_fast8_t g =
+              FuncTableC[data->cem[p]](data->endpoints[p][1], data->endpoints[p][5], data->weights[i][0]);
+            uint_fast8_t b =
+              FuncTableC[data->cem[p]](data->endpoints[p][2], data->endpoints[p][6], data->weights[i][0]);
+            uint_fast8_t a =
+              FuncTableA[data->cem[p]](data->endpoints[p][3], data->endpoints[p][7], data->weights[i][0]);
             outbuf[i] = color(r, g, b, a);
         }
     } else {
         for (int i = 0; i < data->bw * data->bh; i++) {
-            uint_fast8_t r = FuncTableC[data->cem[0]](data->endpoints[0][0], data->endpoints[0][4], data->weights[i][0]);
-            uint_fast8_t g = FuncTableC[data->cem[0]](data->endpoints[0][1], data->endpoints[0][5], data->weights[i][0]);
-            uint_fast8_t b = FuncTableC[data->cem[0]](data->endpoints[0][2], data->endpoints[0][6], data->weights[i][0]);
-            uint_fast8_t a = FuncTableA[data->cem[0]](data->endpoints[0][3], data->endpoints[0][7], data->weights[i][0]);
+            uint_fast8_t r =
+              FuncTableC[data->cem[0]](data->endpoints[0][0], data->endpoints[0][4], data->weights[i][0]);
+            uint_fast8_t g =
+              FuncTableC[data->cem[0]](data->endpoints[0][1], data->endpoints[0][5], data->weights[i][0]);
+            uint_fast8_t b =
+              FuncTableC[data->cem[0]](data->endpoints[0][2], data->endpoints[0][6], data->weights[i][0]);
+            uint_fast8_t a =
+              FuncTableA[data->cem[0]](data->endpoints[0][3], data->endpoints[0][7], data->weights[i][0]);
             outbuf[i] = color(r, g, b, a);
         }
     }
 }
 
-void decode_block(const uint8_t* buf, const int bw, const int bh, uint32_t* outbuf)
-{
+void decode_block(const uint8_t *buf, const int bw, const int bh, uint32_t *outbuf) {
     if (buf[0] == 0xfc && (buf[1] & 1) == 1) {
         // void-extent
         uint_fast32_t c;
@@ -1186,21 +1138,16 @@ void decode_block(const uint8_t* buf, const int bw, const int bh, uint32_t* outb
     }
 }
 
-void decode_astc(const uint8_t* data, const int w, const int h, const int bw, const int bh, uint32_t* image)
-{
-    const int num_blocks_x = (w + bw - 1) / bw;
-    const int num_blocks_y = (h + bh - 1) / bh;
-    const int copy_length_last = (w + bw - 1) % bw + 1;
-    uint32_t buf[144];
-    uint32_t* buf_end = buf + bw * bh;
-    const uint8_t* ptr = data;
-    for (int by = 0; by < num_blocks_y; by++) {
-        for (int bx = 0, x = 0; bx < num_blocks_x; bx++, ptr += 16, x += bw) {
-            decode_block(ptr, bw, bh, buf);
-            int copy_length = (bx < num_blocks_x - 1 ? bw : copy_length_last) * 4;
-            uint32_t* b = buf;
-            for (int y = h - by * bh - 1; b < buf_end && y >= 0; y--, b += bw)
-                memcpy(image + y * w + x, b, copy_length);
+int decode_astc(const uint8_t *data, const long w, const long h, const int bw, const int bh, uint32_t *image) {
+    const long num_blocks_x = (w + bw - 1) / bw;
+    const long num_blocks_y = (h + bh - 1) / bh;
+    uint32_t buffer[144];
+    const uint8_t *d = data;
+    for (long by = 0; by < num_blocks_y; by++) {
+        for (long bx = 0; bx < num_blocks_x; bx++, d += 16) {
+            decode_block(d, bw, bh, buffer);
+            copy_block_buffer(bx, by, w, h, bw, bh, buffer, image);
         }
     }
+    return 1;
 }

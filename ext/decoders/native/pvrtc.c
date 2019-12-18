@@ -1,36 +1,23 @@
 #include "pvrtc.h"
-#include "common.h"
 #include <stdint.h>
 #include <string.h>
+#include "color.h"
+#include "endianness.h"
 
-#define MORTON_POS(x, y) (morton_table[num_blocks_x * (y) + (x)])
+static const int PVRTC1_STANDARD_WEIGHT[] = {0, 3, 5, 8};
+static const int PVRTC1_PUNCHTHROUGH_WEIGHT[] = {0, 4, 4, 8};
 
-static inline uint32_t color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-#if BYTE_ORDER == LITTLE_ENDIAN
-    return r | g << 8 | b << 16 | a << 24;
-#else
-    return a | b << 8 | g << 16 | r << 24;
-#endif
-}
-
-static inline int morton_index(const int x, const int y, const int numblocks_x, const int numblocks_y) {
-    const int min_dim = numblocks_x <= numblocks_y ? numblocks_x : numblocks_y;
-    int offset = 0, shift = 0;
-    for (int mask = 1; mask < min_dim; mask <<= 1, shift++) {
+static inline long morton_index(const long x, const long y, const long min_dim) {
+    long offset = 0, shift = 0;
+    for (long mask = 1; mask < min_dim; mask <<= 1, shift++)
         offset |= (((y & mask) | ((x & mask) << 1))) << shift;
-    }
     offset |= ((x | y) >> shift) << (shift * 2);
     return offset;
 }
 
 static void get_texel_colors(const uint8_t *data, PVRTCTexelInfo *info) {
-#if BYTE_ORDER == LITTLE_ENDIAN
-    uint16_t ca = *(uint16_t *)(data + 4);
-    uint16_t cb = *(uint16_t *)(data + 6);
-#else
-    uint16_t ca = data[4] | data[5] << 8;
-    uint16_t cb = data[6] | data[7] << 8;
-#endif
+    uint16_t ca = lton16(*(uint16_t *)(data + 4));
+    uint16_t cb = lton16(*(uint16_t *)(data + 6));
     if (ca & 0x8000) {
         info->a.r = ca >> 10 & 0x1f;
         info->a.g = ca >> 5 & 0x1f;
@@ -59,47 +46,19 @@ static void get_texel_weights_4bpp(const uint8_t *data, PVRTCTexelInfo *info) {
     info->punch_through_flag = 0;
 
     int mod_mode = data[4] & 1;
-#if BYTE_ORDER == LITTLE_ENDIAN
-    uint32_t mod_bits = *(uint32_t *)data;
-#else
-    uint32_t mod_bits = data[0] | data[1] << 8 | data[2] << 16 | data[3] << 24;
-#endif
+    uint32_t mod_bits = lton32(*(uint32_t *)data);
 
     if (mod_mode) {
         // punch-through
         for (int i = 0; i < 16; i++, mod_bits >>= 2) {
-            switch (mod_bits & 3) {
-            case 0:
-                info->weight[i] = 0;
-                break;
-            case 3:
-                info->weight[i] = 8;
-                break;
-            case 2:
+            info->weight[i] = PVRTC1_PUNCHTHROUGH_WEIGHT[mod_bits & 3];
+            if ((mod_bits & 3) == 2)
                 info->punch_through_flag |= 1 << i;
-                // fall through
-            default:
-                info->weight[i] = 4;
-            }
         }
     } else {
         // standard
-        for (int i = 0; i < 16; i++, mod_bits >>= 2) {
-            switch (mod_bits & 3) {
-            case 0:
-                info->weight[i] = 0;
-                break;
-            case 1:
-                info->weight[i] = 3;
-                break;
-            case 2:
-                info->weight[i] = 5;
-                break;
-            case 3:
-                info->weight[i] = 8;
-                break;
-            }
-        }
+        for (int i = 0; i < 16; i++, mod_bits >>= 2)
+            info->weight[i] = PVRTC1_STANDARD_WEIGHT[mod_bits & 3];
     }
 }
 
@@ -107,11 +66,7 @@ static void get_texel_weights_2bpp(const uint8_t *data, PVRTCTexelInfo *info) {
     info->punch_through_flag = 0;
 
     int mod_mode = data[4] & 1;
-#if BYTE_ORDER == LITTLE_ENDIAN
-    uint32_t mod_bits = *(uint32_t *)data;
-#else
-    uint32_t mod_bits = data[0] | data[1] << 8 | data[2] << 16 | data[3] << 24;
-#endif
+    uint32_t mod_bits = lton32(*(uint32_t *)data);
 
     if (mod_mode) {
         // interporated modulation
@@ -123,24 +78,9 @@ static void get_texel_weights_2bpp(const uint8_t *data, PVRTCTexelInfo *info) {
         for (int y = 0, i = 1; y < 4; ++y & 1 ? --i : ++i)
             for (int x = 0; x < 4; x++, i += 2)
                 info->weight[i] = fillflag;
-        for (int y = 0, i = 0; y < 4; ++y & 1 ? ++i : --i) {
-            for (int x = 0; x < 4; x++, i += 2, mod_bits >>= 2) {
-                switch (mod_bits & 3) {
-                case 0:
-                    info->weight[i] = 0;
-                    break;
-                case 1:
-                    info->weight[i] = 3;
-                    break;
-                case 2:
-                    info->weight[i] = 5;
-                    break;
-                case 3:
-                    info->weight[i] = 8;
-                    break;
-                }
-            }
-        }
+        for (int y = 0, i = 0; y < 4; ++y & 1 ? ++i : --i)
+            for (int x = 0; x < 4; x++, i += 2, mod_bits >>= 2)
+                info->weight[i] = PVRTC1_STANDARD_WEIGHT[mod_bits & 3];
         // 0 は常に 1bpp
         info->weight[0] = (info->weight[0] + 3) & 8;
         if (data[0] & 1)
@@ -153,7 +93,7 @@ static void get_texel_weights_2bpp(const uint8_t *data, PVRTCTexelInfo *info) {
     }
 }
 
-static void applicate_color_4bpp(const uint8_t *data, PVRTCTexelInfo *const info[9], uint32_t buf[16]) {
+static void applicate_color_4bpp(const uint8_t *data, PVRTCTexelInfo *const info[9], uint32_t buf[32]) {
     static const int INTERP_WEIGHT[4][3] = {{2, 2, 0}, {1, 3, 0}, {0, 4, 0}, {0, 3, 1}};
     PVRTCTexelColorInt clr_a[16] = {}, clr_b[16] = {};
 
@@ -195,7 +135,7 @@ static void applicate_color_4bpp(const uint8_t *data, PVRTCTexelInfo *const info
     }
 }
 
-static void applicate_color_2bpp(const uint8_t *data, PVRTCTexelInfo *info[9], uint32_t buf[32]) {
+static void applicate_color_2bpp(const uint8_t *data, PVRTCTexelInfo *const info[9], uint32_t buf[32]) {
     static const int INTERP_WEIGHT_X[8][3] = {{4, 4, 0}, {3, 5, 0}, {2, 6, 0}, {1, 7, 0},
                                               {0, 8, 0}, {0, 7, 1}, {0, 6, 2}, {0, 5, 3}};
     static const int INTERP_WEIGHT_Y[4][3] = {{2, 2, 0}, {1, 3, 0}, {0, 4, 0}, {0, 3, 1}};
@@ -262,108 +202,57 @@ static void applicate_color_2bpp(const uint8_t *data, PVRTCTexelInfo *info[9], u
     }
 }
 
-int decode_pvrtc_4bpp(const uint8_t *data, const int w, const int h, uint32_t *image) {
-    int num_blocks_x = (w + 3) / 4;
-    int num_blocks_y = (h + 3) / 4;
-    int num_blocks = num_blocks_x * num_blocks_y;
-    int copy_length_last = (w + 3) % 4 + 1;
+int decode_pvrtc(const uint8_t *data, const long w, const long h, uint32_t *image, const int is2bpp) {
+    long bw = is2bpp ? 8 : 4;
+    long num_blocks_x = is2bpp ? (w + 7) / 8 : (w + 3) / 4;
+    long num_blocks_y = (h + 3) / 4;
+    long num_blocks = num_blocks_x * num_blocks_y;
+    long min_num_blocks = num_blocks_x <= num_blocks_y ? num_blocks_x : num_blocks_y;
 
-    int *morton_table = (int *)malloc(sizeof(int) * num_blocks);
-    if (morton_table == NULL)
+    if ((num_blocks_x & (num_blocks_x - 1)) || (num_blocks_y & (num_blocks_y - 1))) {
+        extern const char *error_msg;
+        error_msg = "the number of blocks of each side must be a power of 2";
         return 0;
+    }
+
     PVRTCTexelInfo *texel_info = (PVRTCTexelInfo *)malloc(sizeof(PVRTCTexelInfo) * num_blocks);
     if (texel_info == NULL) {
-        free(morton_table);
+        extern const char *error_msg;
+        error_msg = "memory allocation failed";
         return 0;
     }
 
-    for (int y = 0; y < num_blocks_y; y++)
-        for (int x = 0; x < num_blocks_x; x++)
-            MORTON_POS(x, y) = morton_index(x, y, num_blocks_x, num_blocks_y);
+    void (*get_texel_weights_func)(const uint8_t *, PVRTCTexelInfo *) =
+      is2bpp ? get_texel_weights_2bpp : get_texel_weights_4bpp;
+    void (*applicate_color_func)(const uint8_t *, PVRTCTexelInfo *const[9], uint32_t[32]) =
+      is2bpp ? applicate_color_2bpp : applicate_color_4bpp;
 
     const uint8_t *d = data;
-    for (int i = 0; i < num_blocks; i++, d += 8) {
+    for (long i = 0; i < num_blocks; i++, d += 8) {
         get_texel_colors(d, &texel_info[i]);
-        get_texel_weights_4bpp(d, &texel_info[i]);
-    }
-
-    uint32_t buffer[16];
-    uint32_t *buffer_end = buffer + 16;
-    PVRTCTexelInfo *local_info[9];
-    int pos_x[3], pos_y[3];
-    for (int by = 0; by < num_blocks_y; by++) {
-        pos_y[0] = by == 0 ? num_blocks_y - 1 : by - 1;
-        pos_y[1] = by;
-        pos_y[2] = by == num_blocks_y - 1 ? 0 : by + 1;
-        for (int bx = 0, x = 0; bx < num_blocks_x; bx++, x += 4) {
-            pos_x[0] = bx == 0 ? num_blocks_x - 1 : bx - 1;
-            pos_x[1] = bx;
-            pos_x[2] = bx == num_blocks_x - 1 ? 0 : bx + 1;
-            for (int cy = 0, c = 0; cy < 3; cy++)
-                for (int cx = 0; cx < 3; cx++, c++)
-                    local_info[c] = &texel_info[MORTON_POS(pos_x[cx], pos_y[cy])];
-            applicate_color_4bpp(data + MORTON_POS(bx, by) * 8, local_info, buffer);
-            int copy_length = (bx < num_blocks_x - 1 ? 4 : copy_length_last) * 4;
-            uint32_t *b = buffer;
-            for (int y = h - by * 4 - 1; b < buffer_end && y >= 0; y--, b += 4)
-                memcpy(image + y * w + x, b, copy_length);
-        }
-    }
-
-    free(morton_table);
-    free(texel_info);
-    return 1;
-}
-
-int decode_pvrtc_2bpp(const uint8_t *data, const int w, const int h, uint32_t *image) {
-    int num_blocks_x = (w + 7) / 8;
-    int num_blocks_y = (h + 3) / 4;
-    int num_blocks = num_blocks_x * num_blocks_y;
-    int copy_length_last = (w + 7) % 8 + 1;
-
-    int *morton_table = (int *)malloc(sizeof(int) * num_blocks);
-    if (morton_table == NULL)
-        return 0;
-    PVRTCTexelInfo *texel_info = (PVRTCTexelInfo *)malloc(sizeof(PVRTCTexelInfo) * num_blocks);
-    if (texel_info == NULL) {
-        free(morton_table);
-        return 0;
-    }
-
-    for (int y = 0; y < num_blocks_y; y++)
-        for (int x = 0; x < num_blocks_x; x++)
-            MORTON_POS(x, y) = morton_index(x, y, num_blocks_x, num_blocks_y);
-
-    const uint8_t *d = data;
-    for (int i = 0; i < num_blocks; i++, d += 8) {
-        get_texel_colors(d, &texel_info[i]);
-        get_texel_weights_2bpp(d, &texel_info[i]);
+        get_texel_weights_func(d, &texel_info[i]);
     }
 
     uint32_t buffer[32];
-    uint32_t *buffer_end = buffer + 32;
     PVRTCTexelInfo *local_info[9];
-    int pos_x[3], pos_y[3];
-    for (int by = 0; by < num_blocks_y; by++) {
+    long pos_x[3], pos_y[3];
+
+    for (long by = 0; by < num_blocks_y; by++) {
         pos_y[0] = by == 0 ? num_blocks_y - 1 : by - 1;
         pos_y[1] = by;
         pos_y[2] = by == num_blocks_y - 1 ? 0 : by + 1;
-        for (int bx = 0, x = 0; bx < num_blocks_x; bx++, x += 8) {
+        for (long bx = 0, x = 0; bx < num_blocks_x; bx++, x += 4) {
             pos_x[0] = bx == 0 ? num_blocks_x - 1 : bx - 1;
             pos_x[1] = bx;
             pos_x[2] = bx == num_blocks_x - 1 ? 0 : bx + 1;
-            for (int cy = 0, c = 0; cy < 3; cy++)
-                for (int cx = 0; cx < 3; cx++, c++)
-                    local_info[c] = &texel_info[MORTON_POS(pos_x[cx], pos_y[cy])];
-            applicate_color_2bpp(data + MORTON_POS(bx, by) * 8, local_info, buffer);
-            int copy_length = (bx < num_blocks_x - 1 ? 8 : copy_length_last) * 4;
-            uint32_t *b = buffer;
-            for (int y = h - by * 4 - 1; b < buffer_end && y >= 0; y--, b += 8)
-                memcpy(image + y * w + x, b, copy_length);
+            for (long cy = 0, c = 0; cy < 3; cy++)
+                for (long cx = 0; cx < 3; cx++, c++)
+                    local_info[c] = &texel_info[morton_index(pos_x[cx], pos_y[cy], min_num_blocks)];
+            applicate_color_func(data + morton_index(bx, by, min_num_blocks) * 8, local_info, buffer);
+            copy_block_buffer(bx, by, w, h, bw, 4, buffer, image);
         }
     }
 
-    free(morton_table);
     free(texel_info);
     return 1;
 }

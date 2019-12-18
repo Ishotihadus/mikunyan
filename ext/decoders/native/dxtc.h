@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-void decode_dxt1(const uint8_t*, const int, const int, uint32_t*);
-void decode_dxt5(const uint8_t*, const int, const int, uint32_t*);
+int decode_dxt1(const uint8_t *, const long, const long, uint32_t *);
+int decode_dxt5(const uint8_t *, const long, const long, uint32_t *);
 
 #endif /* end of include guard: DXTC_H */

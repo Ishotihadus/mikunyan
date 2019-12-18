@@ -24,7 +24,6 @@ typedef struct {
     uint32_t punch_through_flag;
 } PVRTCTexelInfo;
 
-int decode_pvrtc_4bpp(const uint8_t*, const int, const int, uint32_t*);
-int decode_pvrtc_2bpp(const uint8_t*, const int, const int, uint32_t*);
+int decode_pvrtc(const uint8_t *, const long, const long, uint32_t *, const int);
 
 #endif /* end of include guard: PVRTC_H */

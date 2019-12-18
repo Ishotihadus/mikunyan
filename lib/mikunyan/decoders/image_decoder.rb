@@ -74,9 +74,9 @@ module Mikunyan
         when 28, 29, 64, 65 # DXT1Crunched, DXT5Crunched, ETC_RGB4Crunched, ETC2_RGBA8Crunched
           decode_crunched(width, height, bin)
         when 30, 31, -127 # PVRTC_RGB2, PVRTC_RGBA2, PVRTC_2BPP_RGBA
-          decode_pvrtc1_2bpp(width, height, bin)
+          decode_pvrtc1(width, height, bin, 2)
         when 32, 33 # PVRTC_RGB4, PVRTC_RGBA4
-          decode_pvrtc1_4bpp(width, height, bin)
+          decode_pvrtc1(width, height, bin, 4)
         when 34 # ETC_RGB4
           decode_etc1(width, height, bin)
         # when 41 # EAC_R
@@ -266,12 +266,7 @@ module Mikunyan
       # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_rhalf(width, height, bin, endian = :big)
-        mem = String.new(capacity: width * height * 3)
-        (width * height).times do |i|
-          c = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i * 2) : BinUtils.get_int16_be(bin, i * 2)))
-          BinUtils.append_int8!(mem, c, c, c)
-        end
-        ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
+        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_rhalf(bin, width * height, endian == :big)).flip
       end
 
       # Decode image from RG Half-float binary
@@ -281,13 +276,7 @@ module Mikunyan
       # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_rghalf(width, height, bin, endian = :big)
-        mem = String.new(capacity: width * height * 3)
-        (width * height).times do |i|
-          r = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i * 4) : BinUtils.get_int16_be(bin, i * 4)))
-          g = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i * 4 + 2) : BinUtils.get_int16_be(bin, i * 4 + 2)))
-          BinUtils.append_int8!(mem, r, g, 0)
-        end
-        ChunkyPNG::Image.from_rgb_stream(width, height, mem).flip
+        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_rghalf(bin, width * height, endian == :big)).flip
       end
 
       # Decode image from RGBA Half-float binary
@@ -297,15 +286,7 @@ module Mikunyan
       # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_rgbahalf(width, height, bin, endian = :big)
-        mem = String.new(capacity: width * height * 4)
-        (width * height).times do |i|
-          r = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i * 8) : BinUtils.get_int16_be(bin, i * 8)))
-          g = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i * 8 + 2) : BinUtils.get_int16_be(bin, i * 8 + 2)))
-          b = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i * 8 + 4) : BinUtils.get_int16_be(bin, i * 8 + 4)))
-          a = f2i(n2f(endian == :little ? BinUtils.get_int16_le(bin, i * 8 + 6) : BinUtils.get_int16_be(bin, i * 8 + 6)))
-          BinUtils.append_int8!(mem, r, g, b, a)
-        end
-        ChunkyPNG::Image.from_rgba_stream(width, height, mem).flip
+        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_rgbahalf(bin, width * height, endian == :big)).flip
       end
 
       # Decode image from R float binary
@@ -374,22 +355,15 @@ module Mikunyan
         ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_dxt5(bin, width, height))
       end
 
-      # Decode image from PVRTC1 4bpp compressed binary
+      # Decode image from PVRTC1 compressed binary
       # @param [Integer] width image width
       # @param [Integer] height image height
       # @param [String] bin binary to decode
+      # @param [Integer] bpp bit per pixel (2 or 4)
       # @return [ChunkyPNG::Image] decoded image
-      def self.decode_pvrtc1_4bpp(width, height, bin)
-        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_pvrtc1_4bpp(bin, width, height))
-      end
-
-      # Decode image from PVRTC1 2bpp compressed binary
-      # @param [Integer] width image width
-      # @param [Integer] height image height
-      # @param [String] bin binary to decode
-      # @return [ChunkyPNG::Image] decoded image
-      def self.decode_pvrtc1_2bpp(width, height, bin)
-        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_pvrtc1_2bpp(bin, width, height))
+      def self.decode_pvrtc1(width, height, bin, bpp)
+        raise 'bpp of PVRTC1 must be 2 or 4' unless bpp == 2 || bpp == 4
+        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_pvrtc1(bin, width, height, bpp == 2))
       end
 
       # Decode image from ETC1 compressed binary
@@ -483,35 +457,10 @@ module Mikunyan
         header + bin
       end
 
-      # convert 16bit float
-      def self.n2f(n)
-        case n
-        when 0x0000
-          0.0
-        when 0x8000
-          -0.0
-        when 0x7c00
-          Float::INFINITY
-        when 0xfc00
-          -Float::INFINITY
-        else
-          s = n & 0x8000 != 0
-          e = n & 0x7c00
-          f = n & 0x03ff
-          case e
-          when 0x7c00
-            Float::NAN
-          when 0
-            (s ? -f : f) * 2.0**-24
-          else
-            (s ? -1 : 1) * (f / 1024.0 + 1) * (2.0**((e >> 10) - 15))
-          end
-        end
-      end
-
       # [0.0,1.0] -> [0,255]
-      def self.f2i(d)
-        (d * 255).round.clamp(0, 255)
+      def self.f2i(val)
+        return 0 unless val.finite?
+        (val * 255).round.clamp(0, 255)
       end
     end
   end
