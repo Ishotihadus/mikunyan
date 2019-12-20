@@ -108,7 +108,7 @@ obj.key
 
 Mikunyan generates `ChunkyPNG::Image` images directly from Texture2D objects.
 
-Mikunyan can decode images in basic texture formats (1–5, 7, 9, 13–20, 22, 62, and 63), DXT1 (10), DXT5 (12), PVRTC1 (30–33), ETC (34), ETC2 (45–47), ASTC (48–59), HDR ASTC (66–71), or Crunched format (28, 29, 64, 65).
+Mikunyan can decode images in basic texture formats (1–5, 7, 9, 13–20, 22, 62, 63), DXT1 (10), DXT5 (12), PVRTC1 (30–33), ETC (34), EAC (41–44), ETC2 (45–47), ASTC (48–59), HDR ASTC (66–71), or Crunched format (28, 29, 64, 65).
 
 ```ruby
 # get some Texture2D asset

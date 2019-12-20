@@ -79,10 +79,14 @@ module Mikunyan
           decode_pvrtc1(width, height, bin, 4)
         when 34 # ETC_RGB4
           decode_etc1(width, height, bin)
-        # when 41 # EAC_R
-        # when 42 # EAC_R_SIGNED
-        # when 43 # EAC_RG
-        # when 44 # EAC_RG_SIGNED
+        when 41 # EAC_R
+          decode_eacr(width, height, bin)
+        when 42 # EAC_R_SIGNED
+          decode_eacsr(width, height, bin)
+        when 43 # EAC_RG
+          decode_eacrg(width, height, bin)
+        when 44 # EAC_RG_SIGNED
+          decode_eacsrg(width, height, bin)
         when 45 # ETC2_RGB
           decode_etc2rgb(width, height, bin)
         when 46 # ETC2_RGBA1
@@ -373,6 +377,42 @@ module Mikunyan
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_etc1(width, height, bin)
         ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_etc1(bin, width, height))
+      end
+
+      # Decode image from EAC R11 compressed binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_eacr(width, height, bin)
+        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_eacr(bin, width, height))
+      end
+
+      # Decode image from EAC Signed R11 compressed binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_eacsr(width, height, bin)
+        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_eacsr(bin, width, height))
+      end
+
+      # Decode image from EAC RG11 compressed binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_eacrg(width, height, bin)
+        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_eacrg(bin, width, height))
+      end
+
+      # Decode image from EAC Signed RG11 compressed binary
+      # @param [Integer] width image width
+      # @param [Integer] height image height
+      # @param [String] bin binary to decode
+      # @return [ChunkyPNG::Image] decoded image
+      def self.decode_eacsrg(width, height, bin)
+        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_eacsrg(bin, width, height))
       end
 
       # Decode image from ETC2 compressed binary

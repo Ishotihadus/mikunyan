@@ -284,14 +284,38 @@ static void decode_etc2a8_block(const uint8_t *data, uint32_t *outbuf) {
         // multiplier != 0
         const uint_fast8_t multiplier = data[1] >> 4;
         const int_fast8_t *table = Etc2AlphaModTable[data[1] & 0xf];
-        uint_fast64_t l = data[7] | (uint_fast16_t)data[6] << 8 | (uint_fast32_t)data[5] << 16 |
-          (uint_fast32_t)data[4] << 24 | (uint_fast64_t)data[3] << 32 | (uint_fast64_t)data[2] << 40;
+        uint_fast64_t l = bton64(*(uint64_t*)data);
         for (int i = 0; i < 16; i++, l >>= 3)
             ((uint8_t *)(outbuf + WriteOrderTableRev[i]))[3] = clamp(data[0] + multiplier * table[l & 7]);
     } else {
         // multiplier == 0 (always same as base codeword)
         for (int i = 0; i < 16; i++, outbuf++)
             ((uint8_t *)outbuf)[3] = data[0];
+    }
+}
+
+static void decode_eac_block(const uint8_t *data, int color, uint32_t *outbuf) {
+    uint_fast8_t multiplier = data[1] >> 1 & 0x78;
+    if (multiplier == 0)
+        multiplier = 1;
+    const int_fast8_t *table = Etc2AlphaModTable[data[1] & 0xf];
+    uint_fast64_t l = bton64(*(uint64_t*)data);
+    for (int i = 0; i < 16; i++, l >>= 3) {
+        int_fast16_t val = data[0] * 8 + multiplier * table[l & 7] + 4;
+        ((uint8_t *)(outbuf + WriteOrderTableRev[i]))[color] = val < 0 ? 0 : val >= 2048 ? 0xff : val >> 3;
+    }
+}
+
+static void decode_eac_signed_block(const uint8_t *data, int color, uint32_t *outbuf) {
+    int8_t base = (int8_t)data[0];
+    uint_fast8_t multiplier = data[1] >> 1 & 0x78;
+    if (multiplier == 0)
+        multiplier = 1;
+    const int_fast8_t *table = Etc2AlphaModTable[data[1] & 0xf];
+    uint_fast64_t l = bton64(*(uint64_t*)data);
+    for (int i = 0; i < 16; i++, l >>= 3) {
+        int_fast16_t val = base * 8 + multiplier * table[l & 7] + 1023;
+        ((uint8_t *)(outbuf + WriteOrderTableRev[i]))[color] = val < 0 ? 0 : val >= 2048 ? 0xff : val >> 3;
     }
 }
 
@@ -342,6 +366,76 @@ int decode_etc2a8(const uint8_t *data, const long w, const long h, uint32_t *ima
         for (long bx = 0; bx < num_blocks_x; bx++, data += 16) {
             decode_etc2_block(data + 8, buffer);
             decode_etc2a8_block(data, buffer);
+            copy_block_buffer(bx, by, w, h, 4, 4, buffer, image);
+        }
+    }
+    return 1;
+}
+
+int decode_eacr(const uint8_t *data, const long w, const long h, uint32_t *image) {
+    long num_blocks_x = (w + 3) / 4;
+    long num_blocks_y = (h + 3) / 4;
+    uint32_t buffer[16];
+    uint32_t base_buffer[16];
+    for (int i = 0; i < 16; i++)
+        base_buffer[i] = color(0, 0, 0, 255);
+    for (long by = 0; by < num_blocks_y; by++) {
+        for (long bx = 0; bx < num_blocks_x; bx++, data += 8) {
+            memcpy(buffer, base_buffer, sizeof(buffer));
+            decode_eac_block(data, 0, buffer);
+            copy_block_buffer(bx, by, w, h, 4, 4, buffer, image);
+        }
+    }
+    return 1;
+}
+
+int decode_eacr_signed(const uint8_t *data, const long w, const long h, uint32_t *image) {
+    long num_blocks_x = (w + 3) / 4;
+    long num_blocks_y = (h + 3) / 4;
+    uint32_t buffer[16];
+    uint32_t base_buffer[16];
+    for (int i = 0; i < 16; i++)
+        base_buffer[i] = color(0, 0, 0, 255);
+    for (long by = 0; by < num_blocks_y; by++) {
+        for (long bx = 0; bx < num_blocks_x; bx++, data += 8) {
+            memcpy(buffer, base_buffer, sizeof(buffer));
+            decode_eac_signed_block(data, 0, buffer);
+            copy_block_buffer(bx, by, w, h, 4, 4, buffer, image);
+        }
+    }
+    return 1;
+}
+
+int decode_eacrg(const uint8_t *data, const long w, const long h, uint32_t *image) {
+    long num_blocks_x = (w + 3) / 4;
+    long num_blocks_y = (h + 3) / 4;
+    uint32_t buffer[16];
+    uint32_t base_buffer[16];
+    for (int i = 0; i < 16; i++)
+        base_buffer[i] = color(0, 0, 0, 255);
+    for (long by = 0; by < num_blocks_y; by++) {
+        for (long bx = 0; bx < num_blocks_x; bx++, data += 16) {
+            memcpy(buffer, base_buffer, sizeof(buffer));
+            decode_eac_block(data, 0, buffer);
+            decode_eac_block(data + 8, 1, buffer);
+            copy_block_buffer(bx, by, w, h, 4, 4, buffer, image);
+        }
+    }
+    return 1;
+}
+
+int decode_eacrg_signed(const uint8_t *data, const long w, const long h, uint32_t *image) {
+    long num_blocks_x = (w + 3) / 4;
+    long num_blocks_y = (h + 3) / 4;
+    uint32_t buffer[16];
+    uint32_t base_buffer[16];
+    for (int i = 0; i < 16; i++)
+        base_buffer[i] = color(0, 0, 0, 255);
+    for (long by = 0; by < num_blocks_y; by++) {
+        for (long bx = 0; bx < num_blocks_x; bx++, data += 16) {
+            memcpy(buffer, base_buffer, sizeof(buffer));
+            decode_eac_signed_block(data, 0, buffer);
+            decode_eac_signed_block(data + 8, 1, buffer);
             copy_block_buffer(bx, by, w, h, 4, 4, buffer, image);
         }
     }

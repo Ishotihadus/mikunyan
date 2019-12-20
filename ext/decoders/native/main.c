@@ -194,8 +194,8 @@ static VALUE rb_decode_etc1(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
  * Decode image from ETC2 compressed binary
  *
  * @param [String] rb_data binary to decode
- * @param [Integer] w image width
- * @param [Integer] h image height
+ * @param [Integer] rb_w image width
+ * @param [Integer] rb_h image height
  * @return [String] decoded rgba binary
  */
 static VALUE rb_decode_etc2(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
@@ -212,8 +212,8 @@ static VALUE rb_decode_etc2(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
  * Decode image from ETC2 Alpha1 compressed binary
  *
  * @param [String] rb_data binary to decode
- * @param [Integer] w image width
- * @param [Integer] h image height
+ * @param [Integer] rb_w image width
+ * @param [Integer] rb_h image height
  * @return [String] decoded rgba binary
  */
 static VALUE rb_decode_etc2a1(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
@@ -230,8 +230,8 @@ static VALUE rb_decode_etc2a1(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h)
  * Decode image from ETC2 Alpha8 compressed binary
  *
  * @param [String] rb_data binary to decode
- * @param [Integer] w image width
- * @param [Integer] h image height
+ * @param [Integer] rb_w image width
+ * @param [Integer] rb_h image height
  * @return [String] decoded rgba binary
  */
 static VALUE rb_decode_etc2a8(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
@@ -240,6 +240,78 @@ static VALUE rb_decode_etc2a8(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h)
         return Qnil;
     VALUE ret = rb_alloc_rgba(w * h);
     if (!decode_etc2a8((uint8_t *)RSTRING_PTR(rb_data), w, h, (uint32_t *)RSTRING_PTR(ret)))
+        return Qnil;
+    return ret;
+}
+
+/*
+ * Decode image from EAC R11 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] rb_w image width
+ * @param [Integer] rb_h image height
+ * @return [String] decoded rgba binary
+ */
+static VALUE rb_decode_eacr(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
+    long w = FIX2LONG(rb_w), h = FIX2LONG(rb_h);
+    if (!check_str_len_block(rb_data, w, h, 4, 4, 8))
+        return Qnil;
+    VALUE ret = rb_alloc_rgba(w * h);
+    if (!decode_eacr((uint8_t *)RSTRING_PTR(rb_data), w, h, (uint32_t *)RSTRING_PTR(ret)))
+        return Qnil;
+    return ret;
+}
+
+/*
+ * Decode image from EAC Signed R11 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] rb_w image width
+ * @param [Integer] rb_h image height
+ * @return [String] decoded rgba binary
+ */
+static VALUE rb_decode_eacsr(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
+    long w = FIX2LONG(rb_w), h = FIX2LONG(rb_h);
+    if (!check_str_len_block(rb_data, w, h, 4, 4, 8))
+        return Qnil;
+    VALUE ret = rb_alloc_rgba(w * h);
+    if (!decode_eacr_signed((uint8_t *)RSTRING_PTR(rb_data), w, h, (uint32_t *)RSTRING_PTR(ret)))
+        return Qnil;
+    return ret;
+}
+
+/*
+ * Decode image from EAC RG11 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] rb_w image width
+ * @param [Integer] rb_h image height
+ * @return [String] decoded rgba binary
+ */
+static VALUE rb_decode_eacrg(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
+    long w = FIX2LONG(rb_w), h = FIX2LONG(rb_h);
+    if (!check_str_len_block(rb_data, w, h, 4, 4, 16))
+        return Qnil;
+    VALUE ret = rb_alloc_rgba(w * h);
+    if (!decode_eacrg((uint8_t *)RSTRING_PTR(rb_data), w, h, (uint32_t *)RSTRING_PTR(ret)))
+        return Qnil;
+    return ret;
+}
+
+/*
+ * Decode image from EAC RG11 compressed binary
+ *
+ * @param [String] rb_data binary to decode
+ * @param [Integer] rb_w image width
+ * @param [Integer] rb_h image height
+ * @return [String] decoded rgba binary
+ */
+static VALUE rb_decode_eacsrg(VALUE self, VALUE rb_data, VALUE rb_w, VALUE rb_h) {
+    long w = FIX2LONG(rb_w), h = FIX2LONG(rb_h);
+    if (!check_str_len_block(rb_data, w, h, 4, 4, 16))
+        return Qnil;
+    VALUE ret = rb_alloc_rgba(w * h);
+    if (!decode_eacrg_signed((uint8_t *)RSTRING_PTR(rb_data), w, h, (uint32_t *)RSTRING_PTR(ret)))
         return Qnil;
     return ret;
 }
@@ -336,6 +408,10 @@ void Init_native() {
     rb_define_module_function(mDecodeHelper, "decode_etc2", rb_decode_etc2, 3);
     rb_define_module_function(mDecodeHelper, "decode_etc2a1", rb_decode_etc2a1, 3);
     rb_define_module_function(mDecodeHelper, "decode_etc2a8", rb_decode_etc2a8, 3);
+    rb_define_module_function(mDecodeHelper, "decode_eacr", rb_decode_eacr, 3);
+    rb_define_module_function(mDecodeHelper, "decode_eacsr", rb_decode_eacsr, 3);
+    rb_define_module_function(mDecodeHelper, "decode_eacrg", rb_decode_eacrg, 3);
+    rb_define_module_function(mDecodeHelper, "decode_eacsrg", rb_decode_eacsrg, 3);
     rb_define_module_function(mDecodeHelper, "decode_astc", rb_decode_astc, 5);
     rb_define_module_function(mDecodeHelper, "decode_dxt1", rb_decode_dxt1, 3);
     rb_define_module_function(mDecodeHelper, "decode_dxt5", rb_decode_dxt5, 3);
