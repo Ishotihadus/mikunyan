@@ -31,7 +31,7 @@ module Mikunyan
     end
 
     # Jumps to given position
-    # @param [Integer] pos position
+    # @param [Integer] jmp_pos position
     def jmp(jmp_pos = 0)
       @io.pos = jmp_pos + @base_pos
     end
@@ -61,7 +61,7 @@ module Mikunyan
 
     # Reads given size of binary string from specified position. This method does not seek.
     # @param [Integer] size size
-    # @param [Integer] pos position
+    # @param [Integer] jmp_pos position
     # @return [String] data
     def read_abs(size, jmp_pos)
       orig_pos = pos

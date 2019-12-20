@@ -43,10 +43,12 @@ module Mikunyan
       :data, :parent_asset, :klass,
       keyword_init: true
     ) do
+      # Alias to {Asset#parse_object}
       def parse
         parent_asset.parse_object(self)
       end
 
+      # Alias to {Asset#parse_object_simple}
       def parse_simple
         parent_asset.parse_object_simple(self)
       end
@@ -144,6 +146,7 @@ module Mikunyan
       obj&.type
     end
 
+    # Alias to {ObjectValue#simplify} (for compatibility)
     def self.object_simplify(obj)
       obj.is_a?(ObjectValue) ? obj.simplify : obj
     end

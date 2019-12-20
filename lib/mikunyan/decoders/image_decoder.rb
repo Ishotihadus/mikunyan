@@ -505,11 +505,13 @@ module Mikunyan
     end
   end
 
+  # @deprecated
   class ImageDecoder
+    # @deprecated Use {Decoder::ImageDecoder#decode_object} or {CustomTypes::Texture2D#generate_png} instead.
     def self.decode_object(object)
-      warn 'Warning: Mikunyan::ImageDecoder.decode_object is deprecated and will be removed at a future release. ' \
-        'Use Mikunyan::Decoder::ImageDecoder.decode_object or' \
-        'Mikunyan::CustomTypes::Texture2D::generate_png instead.'
+      warn 'Warning: Mikunyan::ImageDecoder#decode_object is deprecated and will be removed at a future release. ' \
+        'Use Mikunyan::Decoder::ImageDecoder#decode_object or' \
+        'Mikunyan::CustomTypes::Texture2D#generate_png instead.'
       Mikunyan::Decoder::ImageDecoder.decode_object(object)
     end
   end
