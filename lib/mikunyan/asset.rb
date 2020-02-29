@@ -175,6 +175,14 @@ module Mikunyan
         br.pos = file_size - meta_size
         @endian = br.bool ? :big : :little
       end
+
+      if @format >= 22
+        meta_size = br.i32u
+        file_size = br.i64u
+        data_offset = br.i64u
+        br.adv(8)
+      end
+
       br.endian = @endian
 
       @generator_version = br.cstr if @format >= 7
@@ -198,7 +206,8 @@ module Mikunyan
         br.align(4) if @format >= 14
         if @format >= 16
           ObjectEntry.new(
-            path_id: wide_path_id ? br.i64s : br.i32s, offset: br.i32u, size: br.i32u,
+            path_id: wide_path_id ? br.i64s : br.i32s,
+            offset: @format >= 22 ? br.i64u : br.i32u, size: br.i32u,
             class_idx: br.i32u, stripped?: @format == 16 ? br.bool : nil,
             parent_asset: self
           )
@@ -227,6 +236,7 @@ module Mikunyan
       end
 
       @comment = br.cstr if @format >= 5
+      # _ = br.i32 if @format >= 21
 
       @objects.each do |e|
         br.jmp(data_offset + e.offset)

@@ -84,6 +84,7 @@ module Mikunyan
           end
           stack[n.level] = n
         end
+        br.adv(4) if version >= 21
       else
         nodes = []
         stack = []
