@@ -56,7 +56,7 @@ module Mikunyan
       # Returns object type name string
       # @return [String,nil] type name
       def type
-        klass&.type_tree&.tree&.type || Mikunyan::Constants::CLASS_ID2NAME[class_id]
+        klass&.type_tree&.tree&.type || Mikunyan::Constants::CLASS_ID2NAME[class_id || klass&.class_id]
       end
     end
 
