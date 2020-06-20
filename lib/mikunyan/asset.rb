@@ -183,8 +183,8 @@ module Mikunyan
       end
 
       if @format >= 22
-        meta_size = br.i32u
-        file_size = br.i64u
+        _meta_size = br.i32u
+        _file_size = br.i64u
         data_offset = br.i64u
         br.adv(8)
       end
