@@ -44,32 +44,49 @@ unless File.file?(arg)
   exit(1)
 end
 
-assets = opts[:as_asset] ? [Mikunyan::Asset.file(arg)] : Mikunyan::AssetBundle.file(arg).assets
+if opts[:as_asset]
+  assets = [Mikunyan::Asset.file(arg)]
+else
+  bundle = Mikunyan::AssetBundle.file(arg)
+  assets = bundle.assets
+end
 
 outdir = opts[:outputdir] || File.basename(arg, '.*')
 FileUtils.mkpath(outdir)
 
-assets.each do |asset|
-  if opts[:sprite]
+if opts[:sprite]
+  textures = {}
+  textures_meta = {}
+  assets.each do |asset|
     json = {}
-    textures = {}
 
     asset.each_object do |obj|
       next unless obj.type == 'Sprite'
       obj = obj.parse
-      next unless obj
-      texture_id = obj.m_RD&.texture&.m_PathID&.value
-      next unless texture_id
+      next unless obj&.m_RD&.texture
+      file_id = obj.m_RD.texture.m_FileID.value
+      texture_asset = file_id == 0 ? asset : bundle && bundle[asset.references[file_id - 1].file_path]
+      texture_id = obj.m_RD.texture.m_PathID.value
+      next unless texture_asset && texture_id
 
-      unless textures.key?(texture_id)
-        texture_obj = asset.parse_object(texture_id)
+      unless textures.dig(texture_asset, texture_id)
+        texture_obj = texture_asset.parse_object(texture_id)
         if texture_obj.is_a?(Mikunyan::CustomTypes::Texture2D)
-          textures[texture_id] = texture_obj.generate_png
-          json[texture_id] = {
+          textures[texture_asset] ||= {}
+          textures[texture_asset][texture_id] = texture_obj.generate_png
+          textures_meta[texture_asset] ||= {}
+          textures_meta[texture_asset][texture_id] = {
             name: texture_obj.m_Name&.value, width: texture_obj.m_Width&.value, height: texture_obj.m_Height&.value,
-            format: texture_obj.m_TextureFormat&.value, path_id: texture_id, sprites: []
+            format: texture_obj.m_TextureFormat&.value, asset: texture_asset.name, path_id: texture_id
           }
         end
+      end
+
+      next unless textures_meta[texture_asset][texture_id]
+
+      unless json.key?([file_id, texture_id])
+        json[[file_id, texture_id]] = textures_meta[texture_asset][texture_id].dup
+        json[[file_id, texture_id]][:sprites] = []
       end
 
       x = obj.m_Rect&.x&.value
@@ -77,15 +94,16 @@ assets.each do |asset|
       width = obj.m_Rect&.width&.value
       height = obj.m_Rect&.height&.value
 
-      json[texture_id][:sprites] << { name: obj.object_name, x: x, y: y, width: width, height: height, path_id: obj.path_id }
+      json[[file_id, texture_id]][:sprites] << { name: obj.object_name, x: x, y: y, width: width, height: height, path_id: obj.path_id }
 
-      next unless textures[texture_id] && x && y && width && height
-      textures[texture_id].crop(
-        x.round, (textures[texture_id].height - height - y).round, width.round, height.round
-      ).save("#{outdir}/#{obj.object_name}.png")
+      texture = textures[texture_asset][texture_id]
+      next unless texture && x && y && width && height
+      texture.crop(x.round, (texture.height - height - y).round, width.round, height.round).save("#{outdir}/#{obj.object_name}.png")
     end
     puts opts[:pretty] ? JSON.pretty_generate(json.values) : JSON.generate(json.values)
-  else
+  end
+else
+  assets.each do |asset|
     json = []
     asset.each_object do |obj|
       next unless obj.type == 'Texture2D'
