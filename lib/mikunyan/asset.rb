@@ -103,6 +103,12 @@ module Mikunyan
       @objects.each(&block)
     end
 
+    # Returns object with specified path ID
+    # @return [ObjectEntry,nil]
+    def path_id(id)
+      @path_id_table[id]
+    end
+
     # Returns list of all path IDs
     # @return [Array<Integer>] list of all path IDs
     def path_ids
