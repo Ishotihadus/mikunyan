@@ -62,6 +62,7 @@ if opts[:sprite]
 
     asset.each_object do |obj|
       next unless obj.type == 'Sprite'
+      next unless obj.klass
       obj = obj.parse
       next unless obj&.m_RD&.texture
       file_id = obj.m_RD.texture.m_FileID.value
@@ -107,6 +108,7 @@ else
     json = []
     asset.each_object do |obj|
       next unless obj.type == 'Texture2D'
+      next unless obj.klass
       obj = obj.parse
       next unless obj.is_a?(Mikunyan::CustomTypes::Texture2D)
       json << {
