@@ -92,6 +92,8 @@ module Mikunyan
       ui_block_size = br.i32u
       flags = br.i32u
 
+      br.align(16) if @format >= 7
+
       head = BinaryReader.new(uncompress(flags & 0x80 == 0 ? br.read(ci_block_size) : br.read_abs(ci_block_size, file_size - ci_block_size), ui_block_size, flags))
       @guid = head.read(16)
 
