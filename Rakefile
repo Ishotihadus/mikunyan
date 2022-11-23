@@ -12,7 +12,9 @@ task build: :compile
 ext_dirs = %w[decoders/native decoders/crunch]
 
 ext_dirs.each do |dir|
-  Rake::ExtensionTask.new(dir)
+  Rake::ExtensionTask.new(dir) do |ext|
+    ext.lib_dir = "lib/mikunyan/#{File.dirname(dir)}"
+  end
 end
 
 task compile: ext_dirs.map {|e| "compile:#{e}".to_sym}
