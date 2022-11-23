@@ -21,7 +21,7 @@ module Mikunyan
     # @param [String,Integer] index
     # @return [Mikunyan::Asset,nil]
     def [](index)
-      index.is_a?(String) ? @assets.find{|e| e.name == index} : @assets[index]
+      index.is_a?(String) ? @assets.find {|e| e.name == index} : @assets[index]
     end
 
     # Same as assets.each
@@ -94,7 +94,8 @@ module Mikunyan
 
       br.align(16) if @format >= 7
 
-      head = BinaryReader.new(uncompress(flags & 0x80 == 0 ? br.read(ci_block_size) : br.read_abs(ci_block_size, file_size - ci_block_size), ui_block_size, flags))
+      head_bin = flags & 0x80 == 0 ? br.read(ci_block_size) : br.read_abs(ci_block_size, file_size - ci_block_size)
+      head = BinaryReader.new(uncompress(head_bin, ui_block_size, flags))
       @guid = head.read(16)
 
       block_count = head.i32u
@@ -116,7 +117,7 @@ module Mikunyan
     end
 
     def process_asset_entries(asset_entries)
-      @blobs = asset_entries.select(&:blob?).map{|e| [e.name, e.data]}.to_h
+      @blobs = asset_entries.select(&:blob?).map {|e| [e.name, e.data]}.to_h
       @assets = asset_entries.reject(&:blob?).map do |e|
         Asset.load(e.data, e.name, self)
       end

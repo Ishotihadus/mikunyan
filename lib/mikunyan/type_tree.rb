@@ -20,7 +20,8 @@ module Mikunyan
     # @attr [Integer,nil] v18meta
     # @attr [Mikunyan::TypeTree::Node,nil] parent ̑
     # @attr [Array<Mikunyan::TypeTree::Node>] children
-    Node = Struct.new(:version, :level, :array?, :type, :name, :size, :index, :flags, :v18meta, :parent, :children, keyword_init: true) do
+    Node = Struct.new(:version, :level, :array?, :type, :name, :size, :index, :flags, :v18meta, :parent, :children,
+                      keyword_init: true) do
       def need_align?
         flags & 0x4000 != 0
       end
@@ -119,6 +120,7 @@ module Mikunyan
     def self.load_default(class_id, hash)
       file = File.expand_path("../typetrees/#{class_id}/#{hash.unpack1('H*')}.json", __FILE__)
       return nil unless File.file?(file)
+
       TypeTree.deserialize(JSON.parse(File.read(file)))
     end
 

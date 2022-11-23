@@ -95,11 +95,11 @@ module Mikunyan
       if @type == 'pair'
         [@attr['first'].simplify, @attr['second'].simplify]
       elsif @type == 'map' && @value.is_a?(Array)
-        @value.map{|e| [e['first'].simplify, e['second'].simplify]}.to_h
+        @value.map {|e| [e['first'].simplify, e['second'].simplify]}.to_h
       elsif is_struct
-        @attr.map{|key, val| [key, val.simplify]}.to_h
+        @attr.transform_values(&:simplify)
       elsif @value.is_a?(Array)
-        @value.map{|e| e.is_a?(ObjectValue) ? e.simplify : e}
+        @value.map {|e| e.is_a?(ObjectValue) ? e.simplify : e}
       elsif @value.is_a?(ObjectValue)
         @value.simplify
       else

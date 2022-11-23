@@ -56,6 +56,7 @@ module Mikunyan
     def read(size)
       ret = @io.read(size)
       raise EOFError if ret.nil? || size && ret.bytesize < size
+
       ret
     end
 
@@ -75,6 +76,7 @@ module Mikunyan
     # @return [String] string
     def cstr
       raise EOFError if @io.eof?
+
       @io.each_byte.take_while(&:nonzero?).pack('C*')
     end
 

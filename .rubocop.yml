@@ -1,0 +1,42 @@
+AllCops:
+  TargetRubyVersion: 2.6
+
+Metrics/AbcSize:
+  Max: 170
+
+Metrics/BlockLength:
+  Max: 250
+
+Metrics/ClassLength:
+  Max: 1000
+
+Metrics/CyclomaticComplexity:
+  Max: 70
+
+Metrics/MethodLength:
+  Max: 100
+
+Metrics/ModuleLength:
+  Max: 1000
+
+Metrics/ParameterLists:
+  Max: 50
+
+Metrics/PerceivedComplexity:
+  Max: 80
+
+Layout/SpaceInsideBlockBraces:
+  EnforcedStyle: no_space
+  SpaceBeforeBlockParameters: false
+
+Style/Documentation:
+  Enabled: false
+
+Style/NumericPredicate:
+  EnforcedStyle: comparison
+
+Style/MultilineBlockChain:
+  Enabled: false
+
+Style/SpecialGlobalVars:
+  EnforcedStyle: use_perl_names

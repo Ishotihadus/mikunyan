@@ -187,7 +187,8 @@ module Mikunyan
       # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_rgb565(width, height, bin, endian = :big)
-        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_rgb565(bin, width * height, endian == :big)).flip
+        ChunkyPNG::Image.from_rgb_stream(width, height,
+                                         DecodeHelper.decode_rgb565(bin, width * height, endian == :big)).flip
       end
 
       # Decode image from R16 binary
@@ -197,7 +198,8 @@ module Mikunyan
       # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_r16(width, height, bin, endian = :big)
-        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_r16(bin, width * height, endian == :big)).flip
+        ChunkyPNG::Image.from_rgb_stream(width, height,
+                                         DecodeHelper.decode_r16(bin, width * height, endian == :big)).flip
       end
 
       # Decode image from RGBA4444 binary
@@ -270,7 +272,8 @@ module Mikunyan
       # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_rhalf(width, height, bin, endian = :big)
-        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_rhalf(bin, width * height, endian == :big)).flip
+        ChunkyPNG::Image.from_rgb_stream(width, height,
+                                         DecodeHelper.decode_rhalf(bin, width * height, endian == :big)).flip
       end
 
       # Decode image from RG Half-float binary
@@ -280,7 +283,8 @@ module Mikunyan
       # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_rghalf(width, height, bin, endian = :big)
-        ChunkyPNG::Image.from_rgb_stream(width, height, DecodeHelper.decode_rghalf(bin, width * height, endian == :big)).flip
+        ChunkyPNG::Image.from_rgb_stream(width, height,
+                                         DecodeHelper.decode_rghalf(bin, width * height, endian == :big)).flip
       end
 
       # Decode image from RGBA Half-float binary
@@ -290,7 +294,8 @@ module Mikunyan
       # @param [Symbol] endian endianness of binary
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_rgbahalf(width, height, bin, endian = :big)
-        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_rgbahalf(bin, width * height, endian == :big)).flip
+        ChunkyPNG::Image.from_rgba_stream(width, height,
+                                          DecodeHelper.decode_rgbahalf(bin, width * height, endian == :big)).flip
       end
 
       # Decode image from R float binary
@@ -366,7 +371,8 @@ module Mikunyan
       # @param [Integer] bpp bit per pixel (2 or 4)
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_pvrtc1(width, height, bin, bpp)
-        raise 'bpp of PVRTC1 must be 2 or 4' unless bpp == 2 || bpp == 4
+        raise 'bpp of PVRTC1 must be 2 or 4' unless [2, 4].include?(bpp)
+
         ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_pvrtc1(bin, width, height, bpp == 2))
       end
 
@@ -449,7 +455,8 @@ module Mikunyan
       # @param [String] bin binary to decode
       # @return [ChunkyPNG::Image] decoded image
       def self.decode_astc(width, height, blocksize, bin)
-        ChunkyPNG::Image.from_rgba_stream(width, height, DecodeHelper.decode_astc(bin, width, height, blocksize, blocksize))
+        ChunkyPNG::Image.from_rgba_stream(width, height,
+                                          DecodeHelper.decode_astc(bin, width, height, blocksize, blocksize))
       end
 
       # Decode image from crunched texture binary
@@ -488,8 +495,10 @@ module Mikunyan
         fmt = object['m_TextureFormat']&.value
         bin = object['image data']&.value
         return unless width && height && fmt && bin && astc_list[fmt]
+
         bin = object['m_StreamData']&.value if bin.empty?
         return unless bin
+
         header = [0x13, 0xab, 0xa1, 0x5c, astc_list[fmt], astc_list[fmt], 1].pack('C*')
         header << [width].pack('V').byteslice(0, 3)
         header << [height].pack('V').byteslice(0, 3)
@@ -500,6 +509,7 @@ module Mikunyan
       # [0.0,1.0] -> [0,255]
       def self.f2i(val)
         return 0 unless val.finite?
+
         (val * 255).round.clamp(0, 255)
       end
     end

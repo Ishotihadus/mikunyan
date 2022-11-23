@@ -120,8 +120,10 @@ module Mikunyan
     def containers
       obj = @path_id_table[1]
       return nil unless obj.klass&.type_tree&.tree&.type == 'AssetBundle'
+
       parse_object(obj).m_Container.value.map do |e|
-        ContainerInfo.new(e.first.value, e.second.preloadIndex.value, e.second.preloadSize.value, e.second.asset.m_FileID.value, e.second.asset.m_PathID.value)
+        ContainerInfo.new(e.first.value, e.second.preloadIndex.value, e.second.preloadSize.value,
+                          e.second.asset.m_FileID.value, e.second.asset.m_PathID.value)
       end
     end
 
@@ -129,8 +131,9 @@ module Mikunyan
     # @param [Integer,ObjectEntry] obj path ID or object
     # @return [Mikunyan::BaseObject,nil] parsed object
     def parse_object(obj)
-      obj = @path_id_table[obj] if obj.class == Integer
+      obj = @path_id_table[obj] if obj.instance_of?(Integer)
       return nil unless obj.klass&.type_tree
+
       value_klass = Mikunyan::CustomTypes.get_custom_type(obj.klass.type_tree.tree.type, obj.class_id)
       ret = parse_object_private(BinaryReader.new(obj.data, @endian), obj.klass.type_tree.tree, value_klass)
       ret.object_entry = obj
@@ -148,7 +151,7 @@ module Mikunyan
     # @param [Integer,ObjectEntry] obj path ID or object
     # @return [String,nil] type name
     def object_type(obj)
-      obj = @path_id_table[obj] if obj.class == Integer
+      obj = @path_id_table[obj] if obj.instance_of?(Integer)
       obj&.type
     end
 
@@ -226,7 +229,7 @@ module Mikunyan
         end
       end
 
-      @path_id_table = @objects.map{|e| [e.path_id, e]}.to_h
+      @path_id_table = @objects.map {|e| [e.path_id, e]}.to_h
 
       if @format >= 11
         add_id_count = br.i32u
@@ -238,7 +241,8 @@ module Mikunyan
 
       reference_count = br.i32u
       @references = Array.new(reference_count) do
-        Reference.new(@format >= 6 ? br.cstr : nil, @format >= 5 ? br.read(16) : nil, @format >= 5 ? br.i32s : nil, br.cstr)
+        Reference.new(@format >= 6 ? br.cstr : nil, @format >= 5 ? br.read(16) : nil, @format >= 5 ? br.i32s : nil,
+                      br.cstr)
       end
 
       @comment = br.cstr if @format >= 5
@@ -247,7 +251,11 @@ module Mikunyan
       @objects.each do |e|
         br.jmp(data_offset + e.offset)
         e.data = br.read(e.size)
-        e.klass = e.class_idx ? @klasses[e.class_idx] : @klasses.find{|e2| e2.class_id == e.class_id} || @klasses.find{|e2| e2.class_id == e.type_id}
+        e.klass = if e.class_idx
+                    @klasses[e.class_idx]
+                  else
+                    @klasses.find {|e2| e2.class_id == e.class_id} || @klasses.find {|e2| e2.class_id == e.type_id}
+                  end
       end
     end
 
@@ -290,6 +298,7 @@ module Mikunyan
       elsif node.array?
         children.each do |child|
           next ret[child.name] = parse_object_private(br, child) unless child.name == 'data'
+
           size = ret['size']&.value || raise('`size` node must appear before `data` node in array node')
           ret.value =
             if child.children.empty? && (!child.need_align? || br.pos % 4 == 0 && child.size % 4 == 0)
@@ -300,7 +309,7 @@ module Mikunyan
                 br.read(size * child.size).force_encoding('utf-8')
               end
             end
-          ret.value ||= Array.new(size){parse_object_private(br, child)}
+          ret.value ||= Array.new(size) {parse_object_private(br, child)}
           ret['data'] = ret.value
         end
       elsif children.size == 1 && children[0].array? && children[0].type == 'Array' && children[0].name == 'Array'
@@ -308,7 +317,7 @@ module Mikunyan
         ret.name = node.name
         ret.type = node.type
       else
-        ret.attr = children.map{|c| [c.name, parse_object_private(br, c)]}.to_h
+        ret.attr = children.map {|c| [c.name, parse_object_private(br, c)]}.to_h
         if node.type == 'StreamingInfo'
           ret.value = get_stream_blob(ret['path'].value, ret['offset'].value, ret['size'].value)
         else
@@ -322,6 +331,7 @@ module Mikunyan
     def get_stream_blob(path, offset, size)
       return nil unless path && @bundle
       return nil if path.empty?
+
       path["archive:/#{@name}/"] = '' if path.start_with?("archive:/#{@name}/")
       @bundle.blobs[path]&.byteslice(offset, size)
     end
