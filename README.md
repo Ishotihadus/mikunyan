@@ -244,7 +244,7 @@ Available options:
 
 - [json](https://rubygems.org/gems/json)
 - [extlz4](https://rubygems.org/gems/extlz4)
-- [extlzma](https://rubygems.org/gems/extlzma)
+- [extlzma2](https://rubygems.org/gems/extlzma2)
 - [bin_utils](https://rubygems.org/gems/bin_utils)
 - [chunky_png](https://rubygems.org/gems/chunky_png)
 

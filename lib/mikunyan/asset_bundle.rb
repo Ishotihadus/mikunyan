@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'extlz4'
-require 'extlzma'
+require 'extlzma2'
 require 'mikunyan/asset'
 require 'mikunyan/binary_reader'
 

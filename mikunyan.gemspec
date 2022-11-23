@@ -14,20 +14,20 @@ Gem::Specification.new do |spec|
   spec.description   = 'Library to deserialize Unity assetbundles and assets.'
   spec.homepage      = 'https://github.com/Ishotihadus/mikunyan'
   spec.license       = 'MIT'
+  spec.required_ruby_version = '>= 2.6.0'
 
-  spec.files         = `git ls-files -z`.split("\x0").reject do |f|
+  spec.files = `git ls-files -z`.split("\x0").reject do |f|
     f.match(%r{^(test|spec|features)/})
   end
   spec.bindir        = 'exe'
-  spec.executables   = spec.files.grep(%r{^exe/}){|f| File.basename(f)}
+  spec.executables   = spec.files.grep(%r{^exe/}) {|f| File.basename(f)}
   spec.require_paths = ['lib']
   spec.extensions    = ['ext/decoders/native/extconf.rb', 'ext/decoders/crunch/extconf.rb']
 
   spec.add_dependency 'bin_utils', '~> 0'
   spec.add_dependency 'chunky_png', '~> 1'
   spec.add_dependency 'extlz4', '~> 0'
-  spec.add_dependency 'extlzma', '~> 0'
-  spec.add_dependency 'json', '~> 2'
+  spec.add_dependency 'extlzma2', '~> 2'
 
   spec.add_development_dependency 'bundler', '~> 2'
   spec.add_development_dependency 'oily_png', '~> 1'
