@@ -8,4 +8,4 @@ append_cppflags('-Wall')
 append_cppflags('-Wextra')
 append_cppflags('-Wvla')
 
-create_makefile('decoders/native')
+create_makefile('mikunyan/decoders/native')

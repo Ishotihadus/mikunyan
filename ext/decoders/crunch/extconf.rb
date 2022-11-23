@@ -9,4 +9,4 @@ append_cppflags('-Wall')
 append_cppflags('-Wextra')
 append_cppflags('-Wvla')
 
-create_makefile('decoders/crunch')
+create_makefile('mikunyan/decoders/crunch')
