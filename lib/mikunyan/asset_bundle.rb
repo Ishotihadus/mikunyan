@@ -59,7 +59,7 @@ module Mikunyan
       @unity_version = br.cstr
       @generator_version = br.cstr
 
-      @format < 6 ? load_unity_raw(br) : load_unity_fs(br)
+      @format == 6 || @signature == 'UnityFS' ? load_unity_fs(br, @signature) : load_unity_raw(br)
     end
 
     # @param [Mikunyan::BinaryReader] br
@@ -86,17 +86,21 @@ module Mikunyan
     end
 
     # @param [Mikunyan::BinaryReader] br
-    def load_unity_fs(br)
+    def load_unity_fs(br, signature)
       file_size = br.i64u
       ci_block_size = br.i32u
       ui_block_size = br.i32u
       flags = br.i32u
+
+      br.adv(1) unless signature == 'UnityFS'
 
       br.align(16) if @format >= 7
 
       head_bin = flags & 0x80 == 0 ? br.read(ci_block_size) : br.read_abs(ci_block_size, file_size - ci_block_size)
       head = BinaryReader.new(uncompress(head_bin, ui_block_size, flags))
       @guid = head.read(16)
+
+      br.align(16) unless flags & 0x200 == 0
 
       block_count = head.i32u
       raw_data = Array.new(block_count) do
